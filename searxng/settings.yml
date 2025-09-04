@@ -1,0 +1,111 @@
+# SearXNG settings for SearchScrape API
+
+general:
+  debug: false
+  instance_name: "SearchScrape SearXNG"
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  default_lang: "en"
+  max_page: 10
+  
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "ultrasecretkey"  # Change this in production
+  base_url: "http://searxng:8080/"
+  image_proxy: true
+  http_protocol_version: "1.1"
+  
+ui:
+  static_path: ""
+  templates_path: ""
+  default_theme: "simple"
+  default_locale: "en"
+  theme_args:
+    simple_style: "auto"
+    
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 30.0
+  useragent_suffix: "SearchScrape/1.0"
+  pool_connections: 100
+  pool_maxsize: 20
+  
+enabled_plugins:
+  - 'Hash plugin'
+  - 'Search on category select'
+  - 'Self Informations'
+  - 'Tracker URL remover'
+
+engines:
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
+    
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+    
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+    
+  - name: startpage
+    engine: startpage
+    shortcut: sp
+    disabled: false
+    
+  - name: qwant
+    engine: qwant
+    shortcut: qw
+    disabled: false
+    
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+    
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+    
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: st
+    disabled: false
+    
+  - name: archive is
+    engine: xpath
+    search_url: https://archive.is/{query}
+    url_xpath: //div[@class="TEXT-BLOCK"]/a/@href
+    title_xpath: //div[@class="TEXT-BLOCK"]/a/text()
+    content_xpath: //div[@class="TEXT-BLOCK"]/ul/li
+    categories: general
+    timeout: 7.0
+    disabled: true
+    shortcut: ai
+    
+  - name: google images
+    engine: google_images
+    shortcut: goi
+    disabled: false
+    
+  - name: bing images
+    engine: bing_images
+    shortcut: bii
+    disabled: false
+
+categories_as_tabs:
+  general:
+  images:
+  news:
+  social media:
+  videos:
+  it:
+  science:
