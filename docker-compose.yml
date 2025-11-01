@@ -1,0 +1,173 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: searchscrape-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - API_KEYS=${API_KEYS:-}
+      - LOG_LEVEL=INFO
+      - WORKERS=4
+    depends_on:
+      searxng:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - searchscrape-net
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searchscrape-searxng
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-ultrasecretkey}
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    networks:
+      - searchscrape-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+  redis:
+    image: redis:7-alpine
+    container_name: searchscrape-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - searchscrape-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: searchscrape-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: searchscrape
+      POSTGRES_USER: searchscrape
+      POSTGRES_PASSWORD: searchscrape123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - searchscrape-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U searchscrape"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    container_name: searchscrape-celery-worker
+    command: celery -A app.workers.tasks worker --loglevel=info --concurrency=4
+    environment:
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+      - searxng
+    networks:
+      - searchscrape-net
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    container_name: searchscrape-celery-beat
+    command: celery -A app.workers.tasks beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - searchscrape-net
+    restart: unless-stopped
+
+  flower:
+    build: .
+    container_name: searchscrape-flower
+    command: celery -A app.workers.tasks flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - searchscrape-net
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: searchscrape-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - searchscrape-net
+    restart: unless-stopped
+
+networks:
+  searchscrape-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
