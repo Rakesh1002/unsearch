@@ -1,0 +1,117 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "UnQuest API",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#000000",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@unquest.ai"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://app.unquest.ai"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Documentation",
+      "icon": "book-open-cover",
+      "url": "https://docs.unquest.ai"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/unsearch/api"
+    },
+    {
+      "name": "Status",
+      "icon": "signal",
+      "url": "https://status.unsearch.io"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "authentication",
+        "rate-limits",
+        "errors"
+      ]
+    },
+    {
+      "group": "Core Features",
+      "pages": [
+        "features/search",
+        "features/scraping",
+        "features/batch-processing",
+        "features/webhooks"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api-reference/introduction"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "pages": [
+        "api-reference/auth/register",
+        "api-reference/auth/login",
+        "api-reference/auth/refresh",
+        "api-reference/auth/me",
+        "api-reference/auth/api-keys"
+      ]
+    },
+    {
+      "group": "Search & Scraping",
+      "pages": [
+        "api-reference/search/search",
+        "api-reference/search/batch",
+        "api-reference/search/engines",
+        "api-reference/search/scrape"
+      ]
+    },
+    {
+      "group": "Billing",
+      "pages": [
+        "api-reference/billing/plans",
+        "api-reference/billing/subscription",
+        "api-reference/billing/usage",
+        "api-reference/billing/portal"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "twitter": "https://twitter.com/unsearch",
+    "github": "https://github.com/unsearch",
+    "linkedin": "https://www.linkedin.com/company/unsearch"
+  },
+  "api": {
+    "baseUrl": "https://api.unsearch.io",
+    "auth": {
+      "method": "bearer"
+    }
+  }
+}

@@ -1,0 +1,258 @@
+name: Scheduled Tests & Monitoring
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set environment URL
+        id: set-url
+        run: |
+          if [ "${{ matrix.environment }}" == "production" ]; then
+            echo "url=https://api.UnSearch.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://staging.UnSearch-api.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check API health
+        run: |
+          response=$(curl -s -w "\n%{http_code}" ${{ steps.set-url.outputs.url }}/health)
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          
+          if [ "$http_code" != "200" ]; then
+            echo "Health check failed with status $http_code"
+            echo "Response: $body"
+            exit 1
+          fi
+          
+          echo "Health check passed"
+          echo "$body" | jq .
+
+      - name: Check API latency
+        run: |
+          total_time=$(curl -o /dev/null -s -w '%{time_total}\n' ${{ steps.set-url.outputs.url }}/health)
+          echo "Response time: ${total_time}s"
+          
+          # Alert if response time > 2 seconds
+          if (( $(echo "$total_time > 2" | bc -l) )); then
+            echo "⚠️ High latency detected: ${total_time}s"
+            exit 1
+          fi
+
+      - name: Test search endpoint
+        env:
+          API_KEY: ${{ secrets[format('{0}_API_KEY', matrix.environment)] }}
+        run: |
+          response=$(curl -s -X POST ${{ steps.set-url.outputs.url }}/api/v1/search \
+            -H "X-API-Key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "test query", "engines": ["google"], "max_results": 1}')
+          
+          echo "$response" | jq .
+          
+          # Check if results exist
+          if [ $(echo "$response" | jq '.results | length') -eq 0 ]; then
+            echo "No search results returned"
+            exit 1
+          fi
+
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+          sudo mv k6 /usr/local/bin/
+
+      - name: Run k6 performance test
+        env:
+          API_KEY: ${{ secrets.STAGING_API_KEY }}
+        run: |
+          cat > performance-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+          
+          const errorRate = new Rate('errors');
+          
+          export let options = {
+            stages: [
+              { duration: '30s', target: 20 },
+              { duration: '1m', target: 20 },
+              { duration: '30s', target: 0 },
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<2000'],
+              errors: ['rate<0.1'],
+            },
+          };
+          
+          export default function () {
+            const params = {
+              headers: {
+                'X-API-Key': __ENV.API_KEY,
+                'Content-Type': 'application/json',
+              },
+            };
+            
+            const payload = JSON.stringify({
+              query: 'performance test query',
+              engines: ['google'],
+              max_results: 5,
+            });
+            
+            const response = http.post(
+              'https://staging.UnSearch-api.com/api/v1/search',
+              payload,
+              params
+            );
+            
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 2000ms': (r) => r.timings.duration < 2000,
+              'has results': (r) => JSON.parse(r.body).results.length > 0,
+            });
+            
+            errorRate.add(response.status !== 200);
+            sleep(1);
+          }
+          EOF
+          
+          k6 run performance-test.js
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            performance-test.js
+            *.json
+
+  uptime-monitoring:
+    name: Uptime Monitoring
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all endpoints
+        run: |
+          endpoints=(
+            "https://staging.UnSearch-api.com/health"
+            "https://staging.UnSearch-api.com/docs"
+            "https://staging.UnSearch-api.com/metrics"
+            "https://api.UnSearch.com/health"
+          )
+          
+          failed=0
+          for endpoint in "${endpoints[@]}"; do
+            echo "Checking $endpoint..."
+            if curl -f -s -o /dev/null -w "%{http_code}" "$endpoint" | grep -q "^[23]"; then
+              echo "✅ $endpoint is up"
+            else
+              echo "❌ $endpoint is down"
+              failed=$((failed + 1))
+            fi
+          done
+          
+          if [ $failed -gt 0 ]; then
+            echo "$failed endpoints are down!"
+            exit 1
+          fi
+
+  database-health:
+    name: Database Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Check database connectivity
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          # Parse connection string
+          DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+          DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+          DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*\/\(.*\)/\1/p')
+          
+          # Test connection
+          pg_isready -h $DB_HOST -p $DB_PORT -d $DB_NAME || exit 1
+
+  alert-on-failure:
+    name: Alert on Failure
+    runs-on: ubuntu-latest
+    needs: [health-check, performance-test, uptime-monitoring]
+    if: failure()
+    steps:
+      - name: Send Slack alert
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: |
+            🚨 Scheduled monitoring detected issues!
+            
+            Workflow: ${{ github.workflow }}
+            Repository: ${{ github.repository }}
+            
+            Please investigate immediately.
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Create incident issue
+        uses: actions/create-issue@v2
+        with:
+          title: '🚨 Scheduled Monitoring Failure Detected'
+          body: |
+            ## Monitoring Alert
+            
+            The scheduled monitoring workflow has detected failures.
+            
+            **Details:**
+            - Workflow Run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - Time: ${{ github.event.head_commit.timestamp }}
+            
+            ### Action Items
+            - [ ] Check service health endpoints
+            - [ ] Review performance metrics
+            - [ ] Verify database connectivity
+            - [ ] Check error logs
+            
+            Please investigate and resolve ASAP.
+          labels: |
+            incident
+            monitoring
+            high-priority
+          assignees: ${{ github.repository_owner }}

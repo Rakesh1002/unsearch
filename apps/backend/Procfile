@@ -1,0 +1,5 @@
+web: ENVIRONMENT=production uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+worker: celery -A app.workers.tasks worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4}
+beat: celery -A app.workers.tasks beat --loglevel=info
+
+

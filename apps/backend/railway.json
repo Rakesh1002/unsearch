@@ -1,0 +1,48 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "poetry install --no-root"
+  },
+  "deploy": {
+    "services": {
+      "web": {
+        "startCommand": "ENVIRONMENT=production uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+        "env": {
+          "ENVIRONMENT": "production",
+          "LOG_LEVEL": "INFO",
+          "SEARXNG_URL": "${SEARXNG_URL}",
+          "DATABASE_URL": "${DATABASE_URL}",
+          "REDIS_URL": "${REDIS_URL}",
+          "CELERY_BROKER_URL": "${CELERY_BROKER_URL:-${REDIS_URL}}",
+          "CELERY_RESULT_BACKEND": "${CELERY_RESULT_BACKEND:-${REDIS_URL}}",
+          "ALLOWED_ORIGINS": "[\"*\"]",
+          "CORS_METHODS": "[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"]",
+          "CORS_HEADERS": "[\"*\"]"
+        }
+      },
+      "worker": {
+        "startCommand": "celery -A app.workers.tasks worker --loglevel=info --concurrency ${CELERY_WORKER_CONCURRENCY:-4}",
+        "env": {
+          "ENVIRONMENT": "production",
+          "SEARXNG_URL": "${SEARXNG_URL}",
+          "DATABASE_URL": "${DATABASE_URL}",
+          "REDIS_URL": "${REDIS_URL}",
+          "CELERY_BROKER_URL": "${CELERY_BROKER_URL:-${REDIS_URL}}",
+          "CELERY_RESULT_BACKEND": "${CELERY_RESULT_BACKEND:-${REDIS_URL}}"
+        }
+      },
+      "beat": {
+        "startCommand": "celery -A app.workers.tasks beat --loglevel=info",
+        "env": {
+          "ENVIRONMENT": "production",
+          "DATABASE_URL": "${DATABASE_URL}",
+          "REDIS_URL": "${REDIS_URL}",
+          "CELERY_BROKER_URL": "${CELERY_BROKER_URL:-${REDIS_URL}}",
+          "CELERY_RESULT_BACKEND": "${CELERY_RESULT_BACKEND:-${REDIS_URL}}"
+        }
+      }
+    }
+  }
+}
+
+

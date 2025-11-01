@@ -1,0 +1,21 @@
+{
+  "buildCommand": "cd apps/web && npm run build",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://unquest-api.railway.app"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "https://unquest-api.railway.app",
+      "NEXT_PUBLIC_APP_URL": "https://unquest.vercel.app"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://unquest-api.railway.app/api/:path*"
+    }
+  ]
+}
