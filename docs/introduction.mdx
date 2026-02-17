@@ -1,0 +1,151 @@
+---
+title: 'Introduction'
+description: 'Privacy-respecting search and scraping API powered by SearXNG'
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="UnSearch Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="UnSearch Hero Dark"
+/>
+
+## Welcome to UnSearch API
+
+UnSearch is a powerful, privacy-focused web search and content scraping API that gives you complete control over your search and data extraction needs without compromising user privacy.
+
+## Why UnSearch?
+
+<CardGroup cols={2}>
+  <Card
+    title="Privacy First"
+    icon="shield"
+    color="#07C983"
+  >
+    Built on SearXNG, ensuring no tracking or data collection. Your searches remain completely anonymous.
+  </Card>
+  <Card
+    title="Multi-Engine Search"
+    icon="magnifying-glass"
+    color="#0D9373"
+  >
+    Search across Google, Bing, DuckDuckGo, and 70+ search engines with a single API call.
+  </Card>
+  <Card
+    title="Smart Scraping"
+    icon="robot"
+    color="#07C983"
+  >
+    Intelligent content extraction with BeautifulSoup4, including metadata, images, and structured data.
+  </Card>
+  <Card
+    title="Developer Friendly"
+    icon="code"
+    color="#0D9373"
+  >
+    RESTful API with comprehensive documentation, SDKs, and webhook support for seamless integration.
+  </Card>
+</CardGroup>
+
+## Core Features
+
+- **🔍 Unified Search API**: Single endpoint for searching across multiple engines
+- **📊 Content Extraction**: Automatic extraction of text, metadata, and structured data
+- **⚡ High Performance**: Async architecture with Redis caching and connection pooling
+- **🔐 Secure**: JWT authentication, API key management, and rate limiting
+- **💳 Flexible Billing**: Free tier with generous limits, Pro plan for unlimited usage
+- **🔄 Batch Processing**: Process multiple searches or scrapes in parallel
+- **🪝 Webhooks**: Real-time notifications for async operations
+- **📈 Analytics**: Detailed usage tracking and monitoring
+
+## Getting Started
+
+<Steps>
+  <Step title="Create Account">
+    Sign up for a free account at [app.unsearch.io](https://app.unsearch.io)
+  </Step>
+  <Step title="Get API Key">
+    Generate your API key from the dashboard
+  </Step>
+  <Step title="Make Your First Request">
+    Follow our [quickstart guide](/quickstart) to make your first API call
+  </Step>
+</Steps>
+
+## Quick Example
+
+```bash
+curl -X POST "https://api.unsearch.io/api/v1/search" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "artificial intelligence",
+    "engines": ["google", "bing"],
+    "scrape_results": true,
+    "max_results": 10
+  }'
+```
+
+## SDKs & Libraries
+
+<CodeGroup>
+
+```python Python
+pip install unsearch-python
+
+from unsearch import UnSearchClient
+
+client = UnSearchClient(api_key="YOUR_API_KEY")
+results = client.search("artificial intelligence")
+```
+
+```javascript Node.js
+npm install unsearch-js
+
+import { UnSearchClient } from 'unsearch-js';
+
+const client = new UnSearchClient({ apiKey: 'YOUR_API_KEY' });
+const results = await client.search('artificial intelligence');
+```
+
+```go Go
+go get github.com/unsearch/unsearch-go
+
+import "github.com/unsearch/unsearch-go"
+
+client := unsearch.NewClient("YOUR_API_KEY")
+results, _ := client.Search("artificial intelligence")
+```
+
+</CodeGroup>
+
+## Pricing
+
+| Plan | Price | Searches | Scrapes | Rate Limit |
+|------|-------|----------|---------|------------|
+| **Free** | $0/mo | 1,000/mo | 10,000/mo | 60/min |
+| **Pro** | $20/mo | Unlimited | Unlimited | 1000/min |
+| **Enterprise** | Custom | Unlimited | Unlimited | Custom |
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/introduction"
+  >
+    Complete API documentation with examples
+  </Card>
+  <Card
+    title="Support"
+    icon="messages"
+    href="mailto:support@unsearch.io"
+  >
+    Get help from our support team
+  </Card>
+</CardGroup>

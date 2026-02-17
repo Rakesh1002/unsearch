@@ -1,0 +1,265 @@
+---
+title: 'Quickstart'
+description: 'Get started with UnSearch API in under 5 minutes'
+---
+
+## Prerequisites
+
+Before you begin, you'll need:
+
+1. An UnSearch account - [Sign up here](https://app.unsearch.ai/auth/register)
+2. An API key - Generate one from your [dashboard](https://app.unsearch.ai/dashboard/api-keys)
+
+## Installation
+
+<Tabs>
+  <Tab title="cURL">
+    No installation required! You can use cURL from your terminal.
+  </Tab>
+  <Tab title="Python">
+    ```bash
+    pip install requests
+    ```
+  </Tab>
+  <Tab title="Node.js">
+    ```bash
+    npm install axios
+    ```
+  </Tab>
+</Tabs>
+
+## Your First Search
+
+Let's perform a simple web search:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.unsearch.ai/api/v1/search" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "artificial intelligence trends 2024",
+    "max_results": 5
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.unsearch.ai/api/v1/search",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json={
+        "query": "artificial intelligence trends 2024",
+        "max_results": 5
+    }
+)
+
+results = response.json()
+print(results)
+```
+
+```javascript Node.js
+const axios = require('axios');
+
+const response = await axios.post(
+  'https://api.unsearch.ai/api/v1/search',
+  {
+    query: 'artificial intelligence trends 2024',
+    max_results: 5
+  },
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    }
+  }
+);
+
+console.log(response.data);
+```
+
+</CodeGroup>
+
+## Search with Scraping
+
+To get the actual content from search results:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://api.unsearch.ai/api/v1/search" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "machine learning tutorials",
+    "scrape_results": true,
+    "max_results": 3,
+    "scrape_options": {
+      "extract_images": true,
+      "extract_metadata": true
+    }
+  }'
+```
+
+```python Python
+response = requests.post(
+    "https://api.unsearch.ai/api/v1/search",
+    headers={
+        "Authorization": "Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    },
+    json={
+        "query": "machine learning tutorials",
+        "scrape_results": True,
+        "max_results": 3,
+        "scrape_options": {
+            "extract_images": True,
+            "extract_metadata": True
+        }
+    }
+)
+```
+
+```javascript Node.js
+const response = await axios.post(
+  'https://api.unsearch.ai/api/v1/search',
+  {
+    query: 'machine learning tutorials',
+    scrape_results: true,
+    max_results: 3,
+    scrape_options: {
+      extract_images: true,
+      extract_metadata: true
+    }
+  },
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+```
+
+</CodeGroup>
+
+## Response Format
+
+A successful search response looks like this:
+
+```json
+{
+  "query": "artificial intelligence trends 2024",
+  "results": [
+    {
+      "title": "Top AI Trends for 2024",
+      "url": "https://example.com/ai-trends",
+      "content": "Brief description of the content...",
+      "engine": "google",
+      "score": 0.95,
+      "timestamp": "2024-01-15T10:30:00Z",
+      "scraped_content": {
+        "title": "Top AI Trends for 2024 - Complete Guide",
+        "content": "Full article content...",
+        "cleaned_content": "Cleaned and formatted content...",
+        "word_count": 1250,
+        "language": "en",
+        "images": ["image1.jpg", "image2.jpg"],
+        "metadata": {
+          "description": "Meta description",
+          "author": "John Doe",
+          "publish_date": "2024-01-15"
+        }
+      }
+    }
+  ],
+  "total_results": 5,
+  "search_time": 1.23,
+  "engines_used": ["google", "bing"],
+  "request_id": "req_abc123",
+  "cached": false
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Authentication"
+    icon="lock"
+    href="/authentication"
+  >
+    Learn about authentication methods and API key management
+  </Card>
+  <Card
+    title="Search Engines"
+    icon="search"
+    href="/features/search"
+  >
+    Explore all available search engines and options
+  </Card>
+  <Card
+    title="Batch Processing"
+    icon="layer-group"
+    href="/features/batch-processing"
+  >
+    Process multiple searches efficiently
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Complete API documentation
+  </Card>
+</CardGroup>
+
+## Common Use Cases
+
+### 1. Market Research
+```python
+# Search for competitor information
+results = client.search(
+    "SaaS pricing strategies 2024",
+    engines=["google", "bing"],
+    scrape_results=True
+)
+```
+
+### 2. Content Aggregation
+```python
+# Aggregate news from multiple sources
+news = client.search(
+    "technology news today",
+    time_range="day",
+    max_results=20
+)
+```
+
+### 3. SEO Analysis
+```python
+# Check search rankings
+rankings = client.search(
+    "site:yoursite.com your keywords",
+    engines=["google"],
+    max_results=100
+)
+```
+
+## Rate Limits
+
+| Plan | Requests per Minute | Concurrent Requests |
+|------|-------------------|-------------------|
+| Free | 60 | 5 |
+| Pro | 1000 | 50 |
+| Enterprise | Custom | Custom |
+
+## Need Help?
+
+- Check our [API Reference](/api-reference/introduction) for detailed documentation
+- Join our [Discord community](https://discord.gg/unsearch)
+- Email us at [support@unsearch.io](mailto:support@unsearch.io)

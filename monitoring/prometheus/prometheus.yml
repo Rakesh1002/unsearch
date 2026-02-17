@@ -1,0 +1,97 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'unsearch-monitor'
+    environment: 'production'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # UnSearch API metrics
+  - job_name: 'unsearch-api'
+    static_configs:
+      - targets: ['api:8000']
+        labels:
+          service: 'api'
+          environment: 'production'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          database: 'unsearch'
+
+  # Redis exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # SearXNG monitoring
+  - job_name: 'searxng'
+    static_configs:
+      - targets: ['searxng:8080']
+        labels:
+          service: 'searxng'
+    metrics_path: '/stats/prometheus'
+    scrape_interval: 30s
+
+  # Celery worker metrics (if exposed)
+  - job_name: 'celery-worker'
+    static_configs:
+      - targets: ['celery-worker:9540']
+        labels:
+          service: 'celery-worker'
+
+  # Flower metrics
+  - job_name: 'flower'
+    static_configs:
+      - targets: ['flower:5555']
+        labels:
+          service: 'flower'
+    metrics_path: '/metrics'
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          service: 'grafana'
+    metrics_path: '/metrics'
+
+  # Nginx metrics (if nginx-prometheus-exporter is used)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+        labels:
+          service: 'nginx'

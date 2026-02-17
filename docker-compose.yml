@@ -1,0 +1,171 @@
+services:
+  api:
+    build: .
+    container_name: unsearch-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - API_KEYS=${API_KEYS:-}
+      - LOG_LEVEL=INFO
+      - WORKERS=4
+    depends_on:
+      searxng:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - unsearch-net
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: unsearch-searxng
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-ultrasecretkey}
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    networks:
+      - unsearch-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+  redis:
+    image: redis:7-alpine
+    container_name: unsearch-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - unsearch-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: unsearch-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: unsearch
+      POSTGRES_USER: unsearch
+      POSTGRES_PASSWORD: unsearch123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - unsearch-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unsearch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    container_name: unsearch-celery-worker
+    command: celery -A app.workers.tasks worker --loglevel=info --concurrency=4
+    environment:
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+      - searxng
+    networks:
+      - unsearch-net
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    container_name: unsearch-celery-beat
+    command: celery -A app.workers.tasks beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - unsearch-net
+    restart: unless-stopped
+
+  flower:
+    build: .
+    container_name: unsearch-flower
+    command: celery -A app.workers.tasks flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - unsearch-net
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: unsearch-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - unsearch-net
+    restart: unless-stopped
+
+networks:
+  unsearch-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
