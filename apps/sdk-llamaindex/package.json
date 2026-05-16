@@ -1,0 +1,35 @@
+{
+  "name": "@unsearch/llamaindex",
+  "version": "0.1.0",
+  "description": "LlamaIndex retriever backed by UnSearch.",
+  "license": "Apache-2.0",
+  "repository": "github:Rakesh1002/unsearch",
+  "homepage": "https://unsearch.dev",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "llamaindex": "^0.8.0",
+    "@unsearch/sdk": "*"
+  },
+  "devDependencies": {
+    "@unsearch/sdk": "workspace:*",
+    "llamaindex": "^0.8.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
+  },
+  "engines": { "node": ">=18" }
+}
