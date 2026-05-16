@@ -1,0 +1,55 @@
+# Cloudflare Containers config for the FastAPI origin.
+#
+# Wrangler reads this when you run `wrangler containers deploy` from
+# the workers/ directory. The Worker references the deployed container
+# via the [[services]] binding declared in wrangler.toml.
+
+name = "unsearch-container"
+
+# Build settings — image lives at repo root
+[build]
+context = ".."
+dockerfile = "../Dockerfile.cloudflare"
+
+# Runtime
+[runtime]
+instance_type = "standard"   # standard | dev (small/medium/large coming soon)
+port           = 8080
+
+[health_check]
+path                  = "/health"
+interval_seconds      = 30
+timeout_seconds       = 10
+unhealthy_threshold   = 3
+healthy_threshold     = 2
+
+# Auto-scaling: CF Containers spin up/down replicas based on traffic
+[scaling]
+min_instances = 0      # scale-to-zero between bursts (saves $)
+max_instances = 10
+target_cpu    = 70
+
+# Environment variables (non-secrets); secrets injected via `wrangler secret put`
+[vars]
+ENVIRONMENT             = "production"
+LOG_LEVEL               = "INFO"
+USE_D1                  = "true"
+USE_KV_CACHE            = "true"
+SEARXNG_URL             = "http://searxng:8080"   # sidecar in Phase 2
+ENABLE_NEURAL_SEARCH    = "true"
+ENABLE_KNOWLEDGE_GRAPH  = "true"
+ENABLE_VERIFICATION     = "true"
+
+# NOTE: secrets must be set with `wrangler secret put <NAME>`:
+#   SECRET_KEY
+#   CLOUDFLARE_ACCOUNT_ID
+#   CLOUDFLARE_API_TOKEN
+#   CLOUDFLARE_D1_DATABASE_ID
+#   CLOUDFLARE_KV_CACHE_NAMESPACE_ID
+#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_*_PRICE_ID (×9)
+#   RESEND_API_KEY
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+#   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+#   SEARXNG_SECRET_KEY
+#   SENTRY_DSN (optional)
+# Full list in workers/SECRETS.md
