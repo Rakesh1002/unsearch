@@ -1,0 +1,41 @@
+{
+  "name": "@unsearch/workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "UnSearch Cloudflare Workers edge router",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src",
+    "format": "biome format --write src",
+    "db:migrate:local": "wrangler d1 execute unsearch-prod --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute unsearch-prod --remote --file=./schema.sql",
+    "db:migrate:staging": "wrangler d1 execute unsearch-staging --remote --file=./schema.sql",
+    "db:console:local": "wrangler d1 execute unsearch-prod --local --command",
+    "db:console:remote": "wrangler d1 execute unsearch-prod --remote --command"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "@hono/zod-validator": "^0.4.1",
+    "zod": "^3.23.8",
+    "jose": "^5.9.6",
+    "@sentry/cloudflare": "^8.45.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@cloudflare/vitest-pool-workers": "^0.5.40",
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

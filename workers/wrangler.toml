@@ -1,0 +1,140 @@
+name = "unsearch-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Account-level routes use CF_ACCOUNT_ID; set via `wrangler whoami` to confirm.
+# Custom domain bound in [env.production] below.
+
+workers_dev = true
+
+# ----- Bindings (default / dev) -----
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "unsearch-prod"
+database_id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "unsearch-storage"
+
+[[vectorize]]
+binding = "VECTORS"
+index_name = "unsearch-vectors"
+
+[[queues.producers]]
+binding = "TASK_QUEUE"
+queue = "unsearch-tasks"
+
+[[queues.consumers]]
+queue = "unsearch-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "unsearch-tasks-dlq"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "unsearch_analytics"
+
+# ----- Durable Objects -----
+
+[[durable_objects.bindings]]
+name = "RESEARCH_AGENT"
+class_name = "ResearchAgent"
+
+[[durable_objects.bindings]]
+name = "TOPIC_MONITOR"
+class_name = "TopicMonitor"
+
+[[durable_objects.bindings]]
+name = "SESSION_MANAGER"
+class_name = "SessionManager"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ResearchAgent", "TopicMonitor", "SessionManager", "RateLimiter"]
+
+# ----- Container service binding (FastAPI on CF Containers) -----
+# Created in Stage 4; service binding lets the edge Worker invoke the
+# Python container without going through public DNS.
+[[services]]
+binding = "CONTAINER"
+service = "unsearch-container"
+environment = "production"
+
+# ----- Public-facing variables (non-secrets) -----
+[vars]
+ENVIRONMENT = "development"
+APP_NAME = "UnSearch"
+API_VERSION = "v1"
+CLOUDFLARE_LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+CLOUDFLARE_REASONING_MODEL = "@cf/qwen/qwq-32b"
+CLOUDFLARE_EMBEDDING_MODEL = "@cf/baai/bge-m3"
+CLOUDFLARE_RERANKER_MODEL = "@cf/baai/bge-reranker-base"
+CLOUDFLARE_SAFETY_MODEL = "@cf/meta/llama-guard-3-8b"
+FRONTEND_URL = "http://localhost:3000"
+EMAIL_FROM = "noreply@unsearch.dev"
+EMAIL_REPLY_TO = "support@unsearch.dev"
+
+# ----- Cron triggers -----
+[triggers]
+crons = [
+  "0 */6 * * *",   # Topic monitor periodic check
+  "0 3 * * *",     # Daily D1 backup to R2
+  "0 0 * * *"      # Daily usage record rollover
+]
+
+# ----- Observability -----
+[observability]
+enabled = true
+head_sampling_rate = 1.0
+
+# ===== Production environment =====
+[env.production]
+name = "unsearch-api"
+workers_dev = false
+routes = [
+  { pattern = "api.unsearch.dev/*", custom_domain = true }
+]
+
+[env.production.vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://unsearch.dev"
+
+# (D1/KV/R2/Vectorize/Queues/AI/services bindings inherited from top level;
+# repeat per-env if you need separate prod resources — recommended after launch)
+
+# ===== Staging environment =====
+[env.staging]
+name = "unsearch-api-staging"
+workers_dev = true
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+FRONTEND_URL = "https://staging.unsearch.dev"
