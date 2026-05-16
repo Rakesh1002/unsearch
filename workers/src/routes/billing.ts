@@ -4,6 +4,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { callContainer } from "../lib/container.js"
 import { d1First, d1Run } from "../lib/d1.js"
 import {
   createBillingPortalSession,
@@ -103,13 +104,11 @@ billingRoutes.post("/webhook", async (c) => {
   )
 
   // Forward complex business logic to the Container so we don't duplicate state machines
-  await c.env.CONTAINER.fetch(
-    new Request("https://container.internal/internal/stripe-webhook", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: raw,
-    }),
-  ).catch((err) => console.error("forward stripe webhook to container failed", err))
+  await callContainer(c.env, "https://container.internal/internal/stripe-webhook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: raw,
+  }).catch((err) => console.error("forward stripe webhook to container failed", err))
 
   await d1Run(
     c.env.DB,

@@ -29,7 +29,7 @@ export interface Env {
   VECTORS: Vectorize
   TASK_QUEUE: Queue<TaskMessage>
   ANALYTICS: AnalyticsEngineDataset
-  CONTAINER: ServiceBinding
+  CONTAINER?: ServiceBinding
 
   // ----- Durable Object namespaces -----
   RESEARCH_AGENT: DurableObjectNamespace

@@ -3,6 +3,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { proxyToContainer } from "../lib/container.js"
 import { requireAuth } from "../middleware/auth.js"
 import { rateLimitMiddleware } from "../middleware/rate-limit.js"
 
@@ -22,10 +23,9 @@ const tavilySearchSchema = z.object({
   exclude_domains: z.array(z.string()).optional(),
 })
 
-agentRoutes.post("/search", zValidator("json", tavilySearchSchema), async (c) => {
-  // Forward to container — search aggregation logic stays in Python for v1
-  return c.env.CONTAINER.fetch(c.req.raw)
-})
+agentRoutes.post("/search", zValidator("json", tavilySearchSchema), async (c) =>
+  proxyToContainer(c.env, c.req.raw as unknown as Request),
+)
 
 // Tavily-compatible extract endpoint
 const extractSchema = z.object({
@@ -34,9 +34,9 @@ const extractSchema = z.object({
   extract_depth: z.enum(["basic", "advanced"]).default("basic"),
 })
 
-agentRoutes.post("/extract", zValidator("json", extractSchema), async (c) => {
-  return c.env.CONTAINER.fetch(c.req.raw)
-})
+agentRoutes.post("/extract", zValidator("json", extractSchema), async (c) =>
+  proxyToContainer(c.env, c.req.raw as unknown as Request),
+)
 
 // Deep research agent — handled via Durable Object
 const researchSchema = z.object({

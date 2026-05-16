@@ -3,6 +3,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { callContainer, proxyToContainer } from "../lib/container.js"
 import { chat } from "../lib/workers-ai.js"
 import { requireAuth } from "../middleware/auth.js"
 import { rateLimitMiddleware } from "../middleware/rate-limit.js"
@@ -20,13 +21,12 @@ verifyRoutes.post("/claim", zValidator("json", claimSchema), async (c) => {
   const body = c.req.valid("json")
 
   // Step 1: gather evidence (forward to container which has the search aggregator)
-  const evidenceResp = await c.env.CONTAINER.fetch(
-    new Request("https://container.internal/api/v1/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: body.claim, max_results: 10, scrape_content: true }),
-    }),
-  )
+  const evidenceResp = await callContainer(c.env, "https://container.internal/api/v1/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query: body.claim, max_results: 10, scrape_content: true }),
+  })
+  if (evidenceResp.status === 503) return evidenceResp
   const evidence = (await evidenceResp.json()) as {
     results?: Array<{ url: string; title: string; snippet: string; content?: string }>
   }
@@ -82,7 +82,6 @@ verifyRoutes.post("/source", zValidator("json", sourceSchema), async (c) => {
 })
 
 const batchSchema = z.object({ claims: z.array(z.string()).min(1).max(20) })
-verifyRoutes.post("/batch", zValidator("json", batchSchema), async (c) => {
-  // Defer batch processing to container (uses CF Queues internally for fan-out)
-  return c.env.CONTAINER.fetch(c.req.raw)
-})
+verifyRoutes.post("/batch", zValidator("json", batchSchema), async (c) =>
+  proxyToContainer(c.env, c.req.raw as unknown as Request),
+)

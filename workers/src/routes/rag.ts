@@ -4,6 +4,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { proxyToContainer } from "../lib/container.js"
 import { searchVectors, upsertVectors } from "../lib/vectorize.js"
 import { chat, chatStream, embed } from "../lib/workers-ai.js"
 import { requireAuth } from "../middleware/auth.js"
@@ -102,7 +103,6 @@ ragRoutes.post("/ingest", zValidator("json", ingestSchema), async (c) => {
   return c.json({ ingested: result.count, mutation_id: result.mutationId, namespace })
 })
 
-ragRoutes.delete("/namespace/:name", async (c) => {
-  // Vectorize doesn't support delete-by-namespace yet; defer to container
-  return c.env.CONTAINER.fetch(c.req.raw)
-})
+ragRoutes.delete("/namespace/:name", async (c) =>
+  proxyToContainer(c.env, c.req.raw as unknown as Request),
+)

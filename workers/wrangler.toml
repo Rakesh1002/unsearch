@@ -16,28 +16,28 @@ binding = "AI"
 [[d1_databases]]
 binding = "DB"
 database_name = "unsearch-prod"
-database_id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+database_id = "bc7db2c5-341a-4041-baab-4a96c25c1f85"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+id = "2a5f621d09b240cc9f236be117b9f5a7"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+id = "31019858f4c44ba0824b52d0622bf8aa"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+id = "6b679f501ea84460bc6c4f67760d7891"
 
 [[kv_namespaces]]
 binding = "API_KEYS"
-id = "PLACEHOLDER_RUN_PROVISION_SCRIPT"
+id = "f32cbcdbe7f949608f47be12a1c0db36"
 
 [[r2_buckets]]
 binding = "STORAGE"
-bucket_name = "unsearch-storage"
+bucket_name = "unsearch-prod-storage"
 
 [[vectorize]]
 binding = "VECTORS"
@@ -81,12 +81,16 @@ tag = "v1"
 new_sqlite_classes = ["ResearchAgent", "TopicMonitor", "SessionManager", "RateLimiter"]
 
 # ----- Container service binding (FastAPI on CF Containers) -----
-# Created in Stage 4; service binding lets the edge Worker invoke the
-# Python container without going through public DNS.
-[[services]]
-binding = "CONTAINER"
-service = "unsearch-container"
-environment = "production"
+# Disabled for initial deploy — uncomment after deploying the Python
+# container via `wrangler containers deploy --config containers.toml`.
+# Edge-native endpoints (auth, neural, RAG, verify, billing, monitor)
+# work without it; the catch-all /proxy and a few specific endpoints
+# return 503 until this is wired.
+#
+# [[services]]
+# binding = "CONTAINER"
+# service = "unsearch-container"
+# environment = "production"
 
 # ----- Public-facing variables (non-secrets) -----
 [vars]
@@ -116,16 +120,89 @@ enabled = true
 head_sampling_rate = 1.0
 
 # ===== Production environment =====
+# Note: `routes` removed for initial deploy — uncomment once the
+# unsearch.dev domain is registered + activated on this CF account.
+# Until then we ship to the .workers.dev subdomain.
 [env.production]
 name = "unsearch-api"
-workers_dev = false
-routes = [
-  { pattern = "api.unsearch.dev/*", custom_domain = true }
-]
+workers_dev = true
 
 [env.production.vars]
 ENVIRONMENT = "production"
+APP_NAME = "UnSearch"
+API_VERSION = "v1"
+CLOUDFLARE_LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+CLOUDFLARE_REASONING_MODEL = "@cf/qwen/qwq-32b"
+CLOUDFLARE_EMBEDDING_MODEL = "@cf/baai/bge-m3"
+CLOUDFLARE_RERANKER_MODEL = "@cf/baai/bge-reranker-base"
+CLOUDFLARE_SAFETY_MODEL = "@cf/meta/llama-guard-3-8b"
 FRONTEND_URL = "https://unsearch.dev"
+EMAIL_FROM = "noreply@unsearch.dev"
+EMAIL_REPLY_TO = "support@unsearch.dev"
+
+# Bindings must be repeated per-env since wrangler v3+ does not inherit
+[env.production.ai]
+binding = "AI"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "unsearch-prod"
+database_id = "bc7db2c5-341a-4041-baab-4a96c25c1f85"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "2a5f621d09b240cc9f236be117b9f5a7"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "31019858f4c44ba0824b52d0622bf8aa"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "6b679f501ea84460bc6c4f67760d7891"
+
+[[env.production.kv_namespaces]]
+binding = "API_KEYS"
+id = "f32cbcdbe7f949608f47be12a1c0db36"
+
+[[env.production.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "unsearch-prod-storage"
+
+[[env.production.vectorize]]
+binding = "VECTORS"
+index_name = "unsearch-vectors"
+
+[[env.production.queues.producers]]
+binding = "TASK_QUEUE"
+queue = "unsearch-tasks"
+
+[[env.production.queues.consumers]]
+queue = "unsearch-tasks"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "unsearch-tasks-dlq"
+
+[[env.production.analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "unsearch_analytics"
+
+[[env.production.durable_objects.bindings]]
+name = "RESEARCH_AGENT"
+class_name = "ResearchAgent"
+
+[[env.production.durable_objects.bindings]]
+name = "TOPIC_MONITOR"
+class_name = "TopicMonitor"
+
+[[env.production.durable_objects.bindings]]
+name = "SESSION_MANAGER"
+class_name = "SessionManager"
+
+[[env.production.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
 
 # (D1/KV/R2/Vectorize/Queues/AI/services bindings inherited from top level;
 # repeat per-env if you need separate prod resources — recommended after launch)

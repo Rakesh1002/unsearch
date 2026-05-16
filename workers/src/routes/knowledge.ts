@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 
 import type { Env, Variables } from "../env.js"
+import { proxyToContainer } from "../lib/container.js"
 import { requireAuth } from "../middleware/auth.js"
 import { rateLimitMiddleware } from "../middleware/rate-limit.js"
 
@@ -13,4 +14,4 @@ knowledgeRoutes.use("*", requireAuth(), rateLimitMiddleware())
  * and connector-backed document search all need the Python NLP stack and
  * connector OAuth flows that live in the Container.
  */
-knowledgeRoutes.all("*", async (c) => c.env.CONTAINER.fetch(c.req.raw))
+knowledgeRoutes.all("*", async (c) => proxyToContainer(c.env, c.req.raw as unknown as Request))

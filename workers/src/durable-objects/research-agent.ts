@@ -90,15 +90,16 @@ export class ResearchAgent extends DurableObject<Env> {
       }
 
       // Delegate the actual search to the Container (heavy op)
-      const searchResp = await this.env.CONTAINER.fetch(
-        new Request("https://container.internal/api/v1/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: subQuery, max_results: 5 }),
-        }),
-      )
-      const searchData = (await searchResp.json()) as {
-        results?: Array<{ url: string; title: string; snippet: string }>
+      let searchData: { results?: Array<{ url: string; title: string; snippet: string }> } = {}
+      if (this.env.CONTAINER) {
+        const searchResp = await this.env.CONTAINER.fetch(
+          new Request("https://container.internal/api/v1/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: subQuery, max_results: 5 }),
+          }),
+        )
+        searchData = (await searchResp.json()) as { results?: Array<{ url: string; title: string; snippet: string }> }
       }
 
       const step: ResearchStep = {

@@ -1,4 +1,5 @@
 import type { Env, TaskMessage } from "./env.js"
+import { callContainer } from "./lib/container.js"
 
 const MAX_WEBHOOK_ATTEMPTS = 5
 
@@ -20,13 +21,11 @@ export async function handleQueueBatch(
 async function handleMessage(msg: TaskMessage, env: Env): Promise<void> {
   switch (msg.type) {
     case "scrape":
-      await env.CONTAINER.fetch(
-        new Request("https://container.internal/internal/scrape", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: msg.jobId, urls: msg.urls, config: msg.config }),
-        }),
-      )
+      await callContainer(env, "https://container.internal/internal/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: msg.jobId, urls: msg.urls, config: msg.config }),
+      })
       return
 
     case "research":
@@ -34,13 +33,11 @@ async function handleMessage(msg: TaskMessage, env: Env): Promise<void> {
       return
 
     case "embed":
-      await env.CONTAINER.fetch(
-        new Request("https://container.internal/internal/embed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documents: msg.documents }),
-        }),
-      )
+      await callContainer(env, "https://container.internal/internal/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documents: msg.documents }),
+      })
       return
 
     case "monitor.check": {

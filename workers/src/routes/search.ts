@@ -4,6 +4,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { callContainer } from "../lib/container.js"
 import { d1Run, nowIso } from "../lib/d1.js"
 import { hashKey, kvGet, kvSet } from "../lib/kv-cache.js"
 import { requireAuth } from "../middleware/auth.js"
@@ -34,17 +35,16 @@ searchRoutes.post("/", zValidator("json", searchSchema), async (c) => {
     if (cached) return c.json({ ...(cached as object), cache_hit: true })
   }
 
-  const upstream = await c.env.CONTAINER.fetch(
-    new Request("https://container.internal/api/v1/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": String(auth.userId),
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify(body),
-    }),
-  )
+  const upstream = await callContainer(c.env, "https://container.internal/api/v1/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": String(auth.userId),
+      "X-Request-Id": requestId,
+    },
+    body: JSON.stringify(body),
+  })
+  if (upstream.status === 503) return upstream
   const data = await upstream.json()
 
   if (body.use_cache) {
@@ -77,13 +77,15 @@ searchRoutes.post("/stream", zValidator("json", streamSchema), async (c) => {
   return streamSSE(c, async (stream) => {
     await stream.writeSSE({ event: "start", data: JSON.stringify({ request_id: requestId, query: body.query }) })
 
-    const upstream = await c.env.CONTAINER.fetch(
-      new Request("https://container.internal/api/v1/search/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
-        body: JSON.stringify(body),
-      }),
-    )
+    const upstream = await callContainer(c.env, "https://container.internal/api/v1/search/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+      body: JSON.stringify(body),
+    })
+    if (upstream.status === 503) {
+      await stream.writeSSE({ event: "error", data: "container_not_configured" })
+      return
+    }
     if (!upstream.body) {
       await stream.writeSSE({ event: "error", data: "no_upstream_body" })
       return

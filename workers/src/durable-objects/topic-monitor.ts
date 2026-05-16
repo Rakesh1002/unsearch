@@ -75,15 +75,16 @@ export class TopicMonitor extends DurableObject<Env> {
     const config = await this.ctx.storage.get<MonitorConfig>("config")
     if (!config?.isActive) return
 
-    const resp = await this.env.CONTAINER.fetch(
-      new Request("https://container.internal/api/v1/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: config.query, max_results: 20 }),
-      }),
-    )
-    const data = (await resp.json()) as {
-      results?: Array<{ url: string; title: string; snippet: string }>
+    let data: { results?: Array<{ url: string; title: string; snippet: string }> } = {}
+    if (this.env.CONTAINER) {
+      const resp = await this.env.CONTAINER.fetch(
+        new Request("https://container.internal/api/v1/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: config.query, max_results: 20 }),
+        }),
+      )
+      data = (await resp.json()) as { results?: Array<{ url: string; title: string; snippet: string }> }
     }
 
     const seen = new Set(config.seenUrls)

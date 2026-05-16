@@ -35,8 +35,33 @@ export async function chat(
     max_tokens: opts.maxTokens ?? 1024,
     temperature: opts.temperature ?? 0.3,
     stream: false,
-  } as never)) as unknown as { response: string }
-  return { response: result.response }
+  } as never)) as unknown
+  return { response: extractResponse(result) }
+}
+
+/**
+ * Workers AI returns shapes that vary by model:
+ *   - { response: "..." }
+ *   - { response: { response: "..." } }
+ *   - { choices: [{ message: { content: "..." } }] }   (gpt-oss style)
+ *   - "..."                                            (rare)
+ */
+function extractResponse(result: unknown): string {
+  if (typeof result === "string") return result
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>
+    if (typeof r.response === "string") return r.response
+    if (r.response && typeof r.response === "object") {
+      return extractResponse(r.response)
+    }
+    if (Array.isArray(r.choices) && r.choices[0]) {
+      const choice = r.choices[0] as Record<string, unknown>
+      const message = choice.message as Record<string, unknown> | undefined
+      if (message && typeof message.content === "string") return message.content
+    }
+    if (typeof r.content === "string") return r.content
+  }
+  return JSON.stringify(result)
 }
 
 export async function chatStream(

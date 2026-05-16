@@ -5,6 +5,7 @@ import { z } from "zod"
 import { zValidator } from "@hono/zod-validator"
 
 import type { Env, Variables } from "../env.js"
+import { callContainer } from "../lib/container.js"
 import { d1First, d1Run, nowIso } from "../lib/d1.js"
 import { requireAuth } from "../middleware/auth.js"
 
@@ -177,10 +178,10 @@ authRoutes.get("/callback/:provider", async (c) => {
   if (!code) throw new HTTPException(400, { message: "Missing code" })
   // Provider exchange handled in Stage 5 frontend integration; this stub
   // exchanges the code at the Container so we don't duplicate the flow.
-  const resp = await c.env.CONTAINER.fetch(
-    new Request(`https://container.internal/api/v1/auth/callback/${provider}?code=${encodeURIComponent(code)}`),
+  return callContainer(
+    c.env,
+    `https://container.internal/api/v1/auth/callback/${provider}?code=${encodeURIComponent(code)}`,
   )
-  return resp
 })
 
 async function hashPassword(password: string, salt: string, pepper: string): Promise<string> {

@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { HTTPException } from "hono/http-exception"
 import { logger } from "hono/logger"
 import { secureHeaders } from "hono/secure-headers"
 import { trimTrailingSlash } from "hono/trailing-slash"
@@ -72,6 +73,9 @@ app.notFound((c) =>
 )
 
 app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return err.getResponse()
+  }
   console.error("unhandled error", err)
   return c.json(
     {

@@ -33,5 +33,11 @@ proxyRoutes.all("*", async (c) => {
     headers,
     body: ["GET", "HEAD"].includes(c.req.method) ? undefined : c.req.raw.body,
   })
+  if (!c.env.CONTAINER) {
+    return c.json(
+      { error: "container_not_configured", message: "FastAPI container not deployed; this endpoint will return once `wrangler containers deploy` runs." },
+      503,
+    )
+  }
   return c.env.CONTAINER.fetch(proxyReq)
 })

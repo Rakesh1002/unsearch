@@ -113,6 +113,12 @@ _archive/
 
 # Environments
 .env
+
+# Cloudflare local credentials and provisioning state — NEVER commit
+.cloudflare.env
+.dev.vars
+**/.dev.vars
+workers/.cf-resources.env
 .venv
 env/
 venv/
