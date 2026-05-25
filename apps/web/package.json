@@ -8,9 +8,9 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "pages:build": "npx @cloudflare/next-on-pages",
-    "pages:dev": "wrangler pages dev .vercel/output/static --compatibility-flag=nodejs_compat",
-    "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name=unsearch-web"
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "next": "^15.1.4",
@@ -31,8 +31,8 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.7",
     "@cloudflare/workers-types": "^4.20250109.0",
+    "@opennextjs/cloudflare": "^1.0.0",
     "@tailwindcss/postcss": "^4.0.0-beta.9",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.4",

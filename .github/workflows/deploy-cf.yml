@@ -57,8 +57,8 @@ jobs:
           workingDirectory: workers
           command: containers deploy --config containers.toml
 
-  pages-web:
-    name: Pages (unsearch.dev)
+  web:
+    name: Web Worker (unsearch.dev)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,21 +70,22 @@ jobs:
         working-directory: apps/web
       - run: pnpm typecheck
         working-directory: apps/web
-      - run: pnpm pages:build
+      - run: pnpm cf:build
         working-directory: apps/web
         env:
           NEXT_PUBLIC_API_URL: https://api.unsearch.dev
-      - name: Deploy to Pages
+      - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/web
-          command: pages deploy .vercel/output/static --project-name=unsearch-web --branch=main
+          command: deploy
 
   smoke:
     name: Production smoke tests
     runs-on: ubuntu-latest
-    needs: [worker, container, pages-web]
+    needs: [worker, container, web]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

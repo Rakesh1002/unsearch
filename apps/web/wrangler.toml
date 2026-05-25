@@ -1,22 +1,26 @@
-# Cloudflare Pages config for the UnSearch dashboard.
-# Deployed via `pnpm pages:deploy`.
+# Cloudflare Worker config for the UnSearch dashboard.
+# Built via @opennextjs/cloudflare, deployed with `pnpm cf:deploy`.
 
 name = "unsearch-web"
+main = ".open-next/worker.js"
 compatibility_date = "2025-04-01"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".vercel/output/static"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+run_worker_first = false
 
 [vars]
 NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
 
-[env.production]
-name = "unsearch-web"
+[[routes]]
+pattern = "unsearch.dev"
+custom_domain = true
 
-[env.production.vars]
-NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
+[[routes]]
+pattern = "www.unsearch.dev"
+custom_domain = true
 
-[env.preview]
-name = "unsearch-web"
-
-[env.preview.vars]
-NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
+[observability]
+enabled = true
