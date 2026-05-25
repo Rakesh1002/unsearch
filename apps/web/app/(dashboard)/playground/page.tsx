@@ -1,8 +1,10 @@
 "use client"
 
+import { ExternalLink, Play, TerminalSquare } from "lucide-react"
 import { useState } from "react"
 
 import { search, type SearchResult } from "~/lib/api"
+import { PageHeader } from "~/app/_components/page-header"
 
 export default function PlaygroundPage() {
   const [apiKey, setApiKey] = useState("")
@@ -30,52 +32,109 @@ export default function PlaygroundPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Playground</h1>
-        <p className="mt-1 text-sm text-[color:var(--color-muted-foreground)]">
-          Try the Search API live. Use a key from the API keys page.
-        </p>
-      </header>
+      <PageHeader title="Playground" description="Try the Search API live. Use a key from the API keys page." />
 
-      <form onSubmit={onRun} className="space-y-3">
-        <input
-          required
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="X-API-Key (unsk_…)"
-          className="w-full rounded-md border bg-[color:var(--color-background)] px-3 py-2 text-sm"
-        />
-        <textarea
-          required
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          rows={3}
-          className="w-full rounded-md border bg-[color:var(--color-background)] px-3 py-2 text-sm"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-[color:var(--color-primary)] px-4 py-2 text-sm font-medium text-[color:var(--color-primary-foreground)] disabled:opacity-50"
-        >
-          {loading ? "Searching…" : "Run search"}
-        </button>
+      <form onSubmit={onRun} className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <label htmlFor="api-key" className="text-sm font-medium">
+            API key
+          </label>
+          <input
+            id="api-key"
+            required
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="unsk_…"
+            className="mt-1.5 block h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div>
+          <label htmlFor="query" className="text-sm font-medium">
+            Query
+          </label>
+          <textarea
+            id="query"
+            required
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            rows={3}
+            className="mt-1.5 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {latency !== null && <span>Last run: {latency} ms</span>}
+          </p>
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Play className="mr-1.5 size-3.5" strokeWidth={2.5} />
+            {loading ? "Searching…" : "Run search"}
+          </button>
+        </div>
       </form>
 
-      {error && <p className="text-sm text-[color:var(--color-destructive)]">{error}</p>}
-      {latency !== null && (
-        <p className="text-xs text-[color:var(--color-muted-foreground)]">Round-trip: {latency} ms</p>
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
       )}
-      {results && (
+
+      {results === null && !loading && !error && (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-14 text-center">
+          <div className="inline-flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <TerminalSquare className="size-5" />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">Run a query to see live results.</p>
+        </div>
+      )}
+
+      {results && results.length > 0 && (
         <ol className="space-y-3">
           {results.map((r) => (
-            <li key={r.url} className="rounded-md border p-4">
-              <a href={r.url} target="_blank" rel="noopener" className="font-medium underline">{r.title}</a>
-              <p className="mt-1 text-sm text-[color:var(--color-muted-foreground)]">{r.snippet}</p>
-              <p className="mt-1 text-xs text-[color:var(--color-muted-foreground)]">{r.engine}{r.score !== null ? ` · score ${r.score.toFixed(2)}` : ""}</p>
+            <li
+              key={r.url}
+              className="group rounded-xl border border-border bg-card p-5 transition-all hover:border-foreground/20 hover:shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-medium text-foreground transition-colors group-hover:text-primary"
+                >
+                  {r.title}
+                </a>
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="Open link"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+              <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{r.url}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.snippet}</p>
+              <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium">
+                  {r.engine}
+                </span>
+                {r.score !== null && <span>score · {r.score.toFixed(2)}</span>}
+              </div>
             </li>
           ))}
         </ol>
+      )}
+
+      {results && results.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
+          No results.
+        </div>
       )}
     </div>
   )
