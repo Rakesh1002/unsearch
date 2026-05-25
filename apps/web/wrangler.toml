@@ -15,8 +15,8 @@ name = "unsearch-web"
 [env.production.vars]
 NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
 
-[env.staging]
-name = "unsearch-web-staging"
+[env.preview]
+name = "unsearch-web"
 
-[env.staging.vars]
-NEXT_PUBLIC_API_URL = "https://unsearch-api-staging.workers.dev"
+[env.preview.vars]
+NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
