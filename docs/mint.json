@@ -60,6 +60,22 @@
       ]
     },
     {
+      "group": "Strategy",
+      "pages": [
+        "strategy/README",
+        "strategy/market",
+        "strategy/icp",
+        "strategy/jtbd",
+        "strategy/positioning",
+        "strategy/value-prop",
+        "strategy/user-journey",
+        "strategy/pricing",
+        "strategy/gtm",
+        "strategy/sales-playbook",
+        "strategy/mrr-plan"
+      ]
+    },
+    {
       "group": "Core Features",
       "pages": [
         "features/search",

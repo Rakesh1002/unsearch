@@ -1,21 +1,39 @@
 # UnSearch
 
-**Open-source search API for AI agents. Drop-in Tavily replacement.**
+> **The open-source search API for AI agents. Tavily-compatible. 10× cheaper.**
 
-UnSearch is a self-hostable, privacy-first web search API designed for AI agents, RAG pipelines, and LLM applications. Search across 70+ engines, extract content from any URL, and run multi-step research — all with a single API.
+Apache 2.0. Self-hostable on Cloudflare Workers + Containers. Drop-in replacement for Tavily — change one base URL, keep your existing `client.search()` calls. $49/mo on the Growth tier vs. a ~$500/mo median across closed-source competitors.
 
-## Why UnSearch?
+## For whom
 
-| Feature | Tavily | Exa | UnSearch |
-|---------|--------|-----|----------|
-| Open Source | - | - | Apache 2.0 |
-| Self-Hostable | - | - | Docker one-liner |
-| Zero Retention | - | - | Optional |
-| Search Engines | 1 | 1 | 70+ |
-| Neural Search | - | Yes | Yes |
-| Knowledge Graph | - | - | Yes |
-| Topic Monitoring | - | - | Yes |
-| Fact Verification | - | - | Yes |
+UnSearch is built for:
+
+- **AI app builders shipping production agents** who hit Tavily's $30/$100 pricing cliff or are nervous about the [Nebius acquisition](https://techcrunch.com/2025/08/06/tavily-raises-25m-to-connect-ai-agents-to-the-web/)
+- **AI-native startups** whose search bill became 30–60% of COGS on Exa or other closed vendors
+- **Cloudflare-stack teams** who want retrieval that runs on the same edge as the rest of their app
+- **Teams that need Apache 2.0** for legal/compliance review or to defuse vendor-lock-in objections
+
+UnSearch is **not** for:
+
+- Anyone who wants a consumer search UI (we're an API, not a browser)
+- Anyone needing internal-document search across Slack/Drive/Confluence (that's [Glean's](https://www.glean.com) job)
+- Anyone needing aggressive scraping of login-walled or anti-bot sites (we respect `robots.txt` and ToS)
+- Procurement-led enterprises that require a 6-month security review before evaluating (we'll get there — see [strategy/mrr-plan.md](./docs/strategy/mrr-plan.md))
+
+## Why UnSearch
+
+| Feature | Tavily | Exa | Brave | UnSearch |
+|---------|--------|-----|-------|----------|
+| Open source license | — | — | — | **Apache 2.0** |
+| Self-hostable | — | — | — | **Docker one-liner + CF Containers** |
+| Drop-in Tavily API | N/A | — | — | **Yes** |
+| Free tier | 1,000/mo | 1,000/mo | None (since Feb 2026) | **5,000/mo** |
+| Price for 100K searches/mo | ~$700 | ~$700 | ~$500 | **$49 (Growth)** |
+| Public 12-month price-notice commitment | — | — | — | **Yes** |
+| Cloudflare-native (Workers / D1 / Vectorize) | — | — | — | **Yes** |
+| Zero-retention mode | — | — | — | **Yes (Pro+)** |
+
+For the full feature comparison, see [docs/feature-matrix.md](./docs/feature-matrix.md). For the strategy + GTM story, see [docs/strategy/](./docs/strategy/README.md).
 
 ## Quick Start
 
