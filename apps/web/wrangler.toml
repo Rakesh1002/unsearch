@@ -1,0 +1,22 @@
+# Cloudflare Pages config for the UnSearch dashboard.
+# Deployed via `pnpm pages:deploy`.
+
+name = "unsearch-web"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+[vars]
+NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
+
+[env.production]
+name = "unsearch-web"
+
+[env.production.vars]
+NEXT_PUBLIC_API_URL = "https://api.unsearch.dev"
+
+[env.staging]
+name = "unsearch-web-staging"
+
+[env.staging.vars]
+NEXT_PUBLIC_API_URL = "https://unsearch-api-staging.workers.dev"

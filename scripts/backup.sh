@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SearchScrape API Database Backup Script
+# UnSearch API Database Backup Script
 # Performs automated backups of PostgreSQL database and Redis data
 
 set -e  # Exit on error
@@ -42,9 +42,9 @@ fi
 # Database configuration
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:-searchscrape}"
-DB_USER="${DB_USER:-searchscrape}"
-DB_PASSWORD="${DB_PASSWORD:-searchscrape123}"
+DB_NAME="${DB_NAME:-unsearch}"
+DB_USER="${DB_USER:-unsearch}"
+DB_PASSWORD="${DB_PASSWORD:-unsearch123}"
 
 # Redis configuration
 REDIS_HOST="${REDIS_HOST:-localhost}"
@@ -133,7 +133,7 @@ backup_redis() {
         cp ./dump.rdb "$backup_file"
     else
         # Try to get it from Docker container
-        docker cp searchscrape-redis:/data/dump.rdb "$backup_file" 2>/dev/null || {
+        docker cp unsearch-redis:/data/dump.rdb "$backup_file" 2>/dev/null || {
             log_warn "Could not find Redis dump file"
             return 1
         }
@@ -203,7 +203,7 @@ upload_to_s3() {
     log_info "Uploading to S3: $file"
     
     local filename=$(basename "$file")
-    local s3_path="s3://$S3_BUCKET/backups/searchscrape/$(date +%Y/%m/%d)/$filename"
+    local s3_path="s3://$S3_BUCKET/backups/unsearch/$(date +%Y/%m/%d)/$filename"
     
     aws s3 cp "$file" "$s3_path" --region "$S3_REGION"
     
@@ -234,7 +234,7 @@ create_backup_report() {
     
     cat > "$report_file" << EOF
 ========================================
-SearchScrape API Backup Report
+UnSearch API Backup Report
 ========================================
 Date: $(date)
 Hostname: $(hostname)
@@ -280,7 +280,7 @@ send_notification() {
             -d "{
                 \"attachments\": [{
                     \"color\": \"$color\",
-                    \"title\": \"SearchScrape Backup\",
+                    \"title\": \"UnSearch Backup\",
                     \"text\": \"$message\",
                     \"footer\": \"Backup System\",
                     \"ts\": $(date +%s)
@@ -290,14 +290,14 @@ send_notification() {
     
     # Email notification (if configured)
     if [ ! -z "${BACKUP_EMAIL:-}" ] && command_exists mail; then
-        echo "$message" | mail -s "SearchScrape Backup - $status" "$BACKUP_EMAIL"
+        echo "$message" | mail -s "UnSearch Backup - $status" "$BACKUP_EMAIL"
     fi
 }
 
 # Main backup process
 main() {
     log_info "========================================="
-    log_info "Starting SearchScrape API Backup"
+    log_info "Starting UnSearch API Backup"
     log_info "Timestamp: $TIMESTAMP"
     log_info "========================================="
     

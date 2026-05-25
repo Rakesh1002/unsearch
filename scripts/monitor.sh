@@ -1,6 +1,6 @@
 #!/bin/bash
 """
-Monitoring and health check script for SearchScrape API.
+Monitoring and health check script for UnSearch API.
 """
 
 set -e
@@ -8,7 +8,7 @@ set -e
 API_URL="${1:-http://localhost:8000}"
 CHECK_INTERVAL="${2:-30}"
 
-echo "🔍 Starting SearchScrape API monitoring..."
+echo "🔍 Starting UnSearch API monitoring..."
 echo "🌐 API URL: $API_URL"
 echo "⏱️ Check interval: ${CHECK_INTERVAL}s"
 
@@ -79,11 +79,11 @@ check_endpoints() {
 show_resources() {
     if command -v docker &> /dev/null; then
         echo "🐳 Docker container status:"
-        docker ps --filter "name=searchscrape" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        docker ps --filter "name=unsearch" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         
         echo ""
         echo "💾 Container resource usage:"
-        docker stats --no-stream --filter "name=searchscrape" --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+        docker stats --no-stream --filter "name=unsearch" --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
     fi
 }
 

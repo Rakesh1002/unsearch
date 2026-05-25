@@ -4,16 +4,16 @@ Unit tests for data models.
 import pytest
 from pydantic import ValidationError
 
-from app.models.requests import SearchScrapeRequest, BatchSearchRequest
-from app.models.responses import SearchResult, ScrapedContent, SearchScrapeResponse
+from app.models.requests import UnSearchRequest, BatchSearchRequest
+from app.models.responses import SearchResult, ScrapedContent, UnSearchResponse
 
 
-class TestSearchScrapeRequest:
-    """Test SearchScrapeRequest model."""
+class TestUnSearchRequest:
+    """Test UnSearchRequest model."""
     
     def test_valid_request(self):
         """Test creating valid request."""
-        request = SearchScrapeRequest(
+        request = UnSearchRequest(
             query="Python tutorials",
             engines=["google", "bing"],
             max_results=10
@@ -29,23 +29,23 @@ class TestSearchScrapeRequest:
         """Test query validation."""
         # Empty query
         with pytest.raises(ValidationError):
-            SearchScrapeRequest(query="", engines=["google"])
+            UnSearchRequest(query="", engines=["google"])
             
         # Query too long
         with pytest.raises(ValidationError):
-            SearchScrapeRequest(query="x" * 501, engines=["google"])
+            UnSearchRequest(query="x" * 501, engines=["google"])
             
     def test_engine_validation(self):
         """Test engine validation."""
         # Invalid engine
         with pytest.raises(ValidationError):
-            SearchScrapeRequest(
+            UnSearchRequest(
                 query="test",
                 engines=["google", "invalid_engine"]
             )
             
         # Duplicate engines removed
-        request = SearchScrapeRequest(
+        request = UnSearchRequest(
             query="test",
             engines=["google", "google", "bing"]
         )
@@ -54,7 +54,7 @@ class TestSearchScrapeRequest:
     def test_language_validation(self):
         """Test language code validation."""
         # Valid language
-        request = SearchScrapeRequest(
+        request = UnSearchRequest(
             query="test",
             engines=["google"],
             language="fr"
@@ -63,7 +63,7 @@ class TestSearchScrapeRequest:
         
         # Invalid language format
         with pytest.raises(ValidationError):
-            SearchScrapeRequest(
+            UnSearchRequest(
                 query="test",
                 engines=["google"],
                 language="eng"  # Should be 2 letters
@@ -73,7 +73,7 @@ class TestSearchScrapeRequest:
         """Test async mode validation."""
         # Async mode without webhook
         with pytest.raises(ValidationError):
-            SearchScrapeRequest(
+            UnSearchRequest(
                 query="test",
                 engines=["google"],
                 async_mode=True,
@@ -81,7 +81,7 @@ class TestSearchScrapeRequest:
             )
             
         # Valid async mode
-        request = SearchScrapeRequest(
+        request = UnSearchRequest(
             query="test",
             engines=["google"],
             async_mode=True,
@@ -167,8 +167,8 @@ class TestSearchResult:
         assert result.scraped_content.extraction_success is True
 
 
-class TestSearchScrapeResponse:
-    """Test SearchScrapeResponse model."""
+class TestUnSearchResponse:
+    """Test UnSearchResponse model."""
     
     def test_response_serialization(self, sample_search_result):
         """Test response serialization."""
@@ -184,7 +184,7 @@ class TestSearchScrapeResponse:
             search_time_ms=500
         )
         
-        response = SearchScrapeResponse(
+        response = UnSearchResponse(
             search_metadata=metadata,
             results=[SearchResult(**sample_search_result)],
             processing_time_ms=1000,

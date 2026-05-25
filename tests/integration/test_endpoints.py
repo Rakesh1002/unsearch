@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import httpx
 
 from app.main import app
-from app.models.requests import SearchScrapeRequest
+from app.models.requests import UnSearchRequest
 from app.models.responses import SearchResult, SearchMetadata
 from app.config import get_settings
 
@@ -341,9 +341,9 @@ class TestCaching:
     def test_cache_hit(self, client, mock_services):
         """Test cache hit scenario."""
         # Mock cached response
-        from app.models.responses import SearchScrapeResponse, SearchMetadata
+        from app.models.responses import UnSearchResponse, SearchMetadata
         
-        cached_response = SearchScrapeResponse(
+        cached_response = UnSearchResponse(
             search_metadata=SearchMetadata(
                 query="cached query",
                 engines_used=["google"],

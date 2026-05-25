@@ -22,10 +22,21 @@ class PlanBasedRateLimiter:
     
     def __init__(self):
         self.redis_client = None
+        # Rate limits matching new laddered pricing tiers
         self.default_limits = {
-            PlanType.FREE: "100/hour",
-            PlanType.PRO: "1000/hour",
-            PlanType.ENTERPRISE: "10000/hour"
+            PlanType.FREE: "10/minute",          # Free: 10 req/min (5K queries/mo)
+            PlanType.PRO: "60/minute",           # Pro ($19): 60 req/min (25K queries/mo)
+            PlanType.GROWTH: "200/minute",       # Growth ($49): 200 req/min (100K queries/mo)
+            PlanType.SCALE: "1000/minute",       # Scale ($149): 1,000 req/min (500K queries/mo)
+            PlanType.ENTERPRISE: "10000/minute"  # Enterprise: 10,000 req/min (custom)
+        }
+        # String-based tier limits (for flexibility with plan names)
+        self.tier_limits = {
+            "free": "10/minute",
+            "pro": "60/minute",
+            "growth": "200/minute",
+            "scale": "1000/minute",
+            "enterprise": "10000/minute"
         }
         
     async def initialize(self):
@@ -71,17 +82,22 @@ class PlanBasedRateLimiter:
         
         # Determine rate limit based on user plan
         if user:
-            # Get user's subscription
-            subscription = user.current_subscription
-            if subscription and subscription.rate_limit:
-                limit_str = subscription.rate_limit
-            else:
-                limit_str = self.default_limits.get(user.current_plan, "100/hour")
+            # Get user's subscription - safely handle detached instances
+            try:
+                subscription = user.current_subscription
+                if subscription and subscription.rate_limit:
+                    limit_str = subscription.rate_limit
+                else:
+                    plan = user.current_plan
+                    limit_str = self.default_limits.get(plan, "10/minute")
+            except Exception:
+                # Fallback if relationships aren't loaded - use Free tier limit
+                limit_str = "10/minute"
             
             key = f"rate_limit:user:{user.id}"
         else:
-            # Anonymous users get minimal rate limit
-            limit_str = "10/hour"
+            # Anonymous users get minimal rate limit (Free tier)
+            limit_str = "10/minute"
             client_ip = get_remote_address(request)
             key = f"rate_limit:ip:{client_ip}"
         
@@ -136,9 +152,9 @@ class PlanBasedRateLimiter:
             search_limit = subscription.search_limit
             scrape_limit = subscription.scrape_limit
         else:
-            # Free plan defaults
-            search_limit = 1000
-            scrape_limit = 10000
+            # Free plan defaults (5x more than Tavily)
+            search_limit = 5000
+            scrape_limit = 500
         
         # Check limits
         if search:
@@ -250,9 +266,9 @@ async def rate_limit_middleware(request: Request, call_next):
         # Get limit info for error message
         if user:
             subscription = user.current_subscription
-            limit_str = subscription.rate_limit if subscription else "100/hour"
+            limit_str = subscription.rate_limit if subscription else "10/minute"
         else:
-            limit_str = "10/hour"
+            limit_str = "10/minute"
         
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

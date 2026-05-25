@@ -1,5 +1,5 @@
 """
-User, subscription, and billing models for the SearchScrape API.
+User, subscription, and billing models for the UnSearch API.
 """
 from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, JSON, Text, Index, ForeignKey, Enum
 from sqlalchemy.orm import relationship
@@ -13,10 +13,12 @@ Base = declarative_base()
 
 
 class PlanType(enum.Enum):
-    """Subscription plan types."""
+    """Subscription plan types matching pricing tiers."""
     FREE = "free"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
+    GROWTH = "growth"
+    SCALE = "scale"
+    ENTERPRISE = "enterprise"  # Legacy/custom plans
 
 
 class SubscriptionStatus(enum.Enum):
@@ -59,6 +61,20 @@ class User(Base):
     stripe_customer_id = Column(String(255), unique=True, index=True)
     stripe_payment_method_id = Column(String(255))
     
+    # Agent placeholder fields (for AI agent self-registration)
+    is_agent_placeholder = Column(Boolean, default=False)  # True until human claims
+    agent_name = Column(String(100), unique=True, nullable=True, index=True)  # Agent identifier (reserved even after expiry)
+    agent_description = Column(Text, nullable=True)  # Agent description
+    claim_code = Column(String(64), unique=True, nullable=True, index=True)  # For human verification
+    claimed_at = Column(DateTime(timezone=True))  # When human claimed
+    
+    # Sandbox limits (only used for unclaimed agents)
+    daily_searches_used = Column(Integer, default=0)
+    daily_reset_at = Column(DateTime(timezone=True))
+    sandbox_expires_at = Column(DateTime(timezone=True))  # 7 days from registration
+    is_sandbox_expired = Column(Boolean, default=False)  # True after 7 days without claim
+    registration_ip = Column(String(45), nullable=True)  # IP address used for registration (for rate limiting)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -73,6 +89,8 @@ class User(Base):
     __table_args__ = (
         Index("idx_users_active", "is_active"),
         Index("idx_users_stripe", "stripe_customer_id"),
+        Index("idx_users_agent_placeholder", "is_agent_placeholder"),
+        Index("idx_users_claim_code", "claim_code"),
     )
     
     @property
@@ -144,9 +162,10 @@ class Subscription(Base):
     interval = Column(String(20), default="month")  # month, year
     
     # Limits (cached from plan)
-    search_limit = Column(Integer, default=1000)  # Monthly search limit
-    scrape_limit = Column(Integer, default=10000)  # Monthly scrape limit
-    rate_limit = Column(String(50), default="100/hour")  # Rate limit
+    # Consistent with frontend pricing page: 5,000 free queries/month
+    search_limit = Column(Integer, default=5000)  # Monthly search limit
+    scrape_limit = Column(Integer, default=500)  # Monthly scrape limit (matches frontend)
+    rate_limit = Column(String(50), default="10/minute")  # Rate limit (matches frontend: 10 req/min)
     
     # Features
     features = Column(JSON, default={
@@ -183,6 +202,11 @@ class Subscription(Base):
     def is_active(self):
         """Check if subscription is currently active."""
         return self.status in [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING]
+    
+    @property
+    def plan_name(self):
+        """Get the plan name as a string."""
+        return self.plan_type.value if self.plan_type else "free"
     
     @property
     def days_remaining(self):
@@ -242,17 +266,19 @@ class Plan(Base):
     
     # Stripe
     stripe_product_id = Column(String(255), unique=True)
-    stripe_price_id = Column(String(255), unique=True)
+    stripe_price_id = Column(String(255), unique=True)  # Monthly price ID
+    stripe_price_id_yearly = Column(String(255), unique=True)  # Yearly price ID
     
     # Pricing
     price = Column(Float, nullable=False)  # Monthly price in USD
+    price_yearly = Column(Float)  # Yearly price in USD (17% discount = 10 months)
     currency = Column(String(3), default="usd")
     interval = Column(String(20), default="month")
     
     # Limits
     search_limit = Column(Integer)  # null = unlimited
     scrape_limit = Column(Integer)  # null = unlimited
-    rate_limit = Column(String(50))  # e.g., "1000/hour"
+    rate_limit = Column(String(50))  # e.g., "10/minute", "60/minute", "1000/minute"
     concurrent_requests = Column(Integer, default=10)
     
     # Features
@@ -263,7 +289,7 @@ class Plan(Base):
     is_visible = Column(Boolean, default=True)  # Show in pricing page
     
     # Metadata
-    metadata = Column(JSON, default={})
+    plan_metadata = Column("metadata", JSON, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -309,7 +335,7 @@ class Invoice(Base):
     
     # Metadata
     description = Column(Text)
-    metadata = Column(JSON, default={})
+    invoice_metadata = Column("metadata", JSON, default={})
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

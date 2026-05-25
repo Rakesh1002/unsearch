@@ -11,7 +11,7 @@ from app.services.searxng import SearXNGService
 from app.services.scraping import ContentScrapingService
 from app.services.cache import CacheService
 from app.services.database import DatabaseService
-from app.models.requests import SearchScrapeRequest, ScrapingConfig
+from app.models.requests import UnSearchRequest, ScrapingConfig
 from app.models.responses import SearchResult, ServiceHealth
 from app.config import get_settings
 
@@ -224,14 +224,14 @@ class TestCacheService:
     @pytest.mark.asyncio
     async def test_cache_operations(self, cache_service):
         """Test cache set and get operations."""
-        from app.models.responses import SearchScrapeResponse, SearchMetadata
+        from app.models.responses import UnSearchResponse, SearchMetadata
         
         # Mock Redis client
         mock_redis = AsyncMock()
         cache_service._client = mock_redis
         
         # Test data
-        response = SearchScrapeResponse(
+        response = UnSearchResponse(
             search_metadata=SearchMetadata(
                 query="test",
                 engines_used=["google"],
@@ -260,7 +260,7 @@ class TestCacheService:
     
     def test_generate_cache_key(self, cache_service):
         """Test cache key generation."""
-        request = SearchScrapeRequest(
+        request = UnSearchRequest(
             query="test query",
             engines=["google"],
             max_results=10

@@ -11,15 +11,16 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '002_add_user_billing'
-down_revision = '001_initial_schema'
+down_revision = '001'
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    # Create enum types
-    op.execute("CREATE TYPE plantype AS ENUM ('FREE', 'PRO', 'ENTERPRISE')")
-    op.execute("CREATE TYPE subscriptionstatus AS ENUM ('ACTIVE', 'TRIALING', 'CANCELLED', 'PAST_DUE', 'UNPAID', 'INCOMPLETE')")
+    # Create enum types (with IF NOT EXISTS to handle SQLAlchemy auto-creation)
+    # Updated to include GROWTH and SCALE tiers for new laddered pricing
+    op.execute("DO $$ BEGIN CREATE TYPE plantype AS ENUM ('FREE', 'PRO', 'GROWTH', 'SCALE', 'ENTERPRISE'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE subscriptionstatus AS ENUM ('ACTIVE', 'TRIALING', 'CANCELLED', 'PAST_DUE', 'UNPAID', 'INCOMPLETE'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
     
     # Create users table
     op.create_table(
@@ -85,7 +86,9 @@ def upgrade():
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('stripe_product_id', sa.String(255), nullable=True),
         sa.Column('stripe_price_id', sa.String(255), nullable=True),
+        sa.Column('stripe_price_id_yearly', sa.String(255), nullable=True),
         sa.Column('price', sa.Float(), nullable=False),
+        sa.Column('price_yearly', sa.Float(), nullable=True),
         sa.Column('currency', sa.String(3), nullable=True, server_default='usd'),
         sa.Column('interval', sa.String(20), nullable=True, server_default='month'),
         sa.Column('search_limit', sa.Integer(), nullable=True),
@@ -103,6 +106,7 @@ def upgrade():
     op.create_index('idx_plans_name', 'plans', ['name'], unique=True)
     op.create_index('idx_plans_stripe_product', 'plans', ['stripe_product_id'], unique=True)
     op.create_index('idx_plans_stripe_price', 'plans', ['stripe_price_id'], unique=True)
+    op.create_index('idx_plans_stripe_price_yearly', 'plans', ['stripe_price_id_yearly'], unique=True)
     op.create_index('idx_plans_active', 'plans', ['is_active'])
     
     # Create subscriptions table
@@ -113,14 +117,14 @@ def upgrade():
         sa.Column('stripe_subscription_id', sa.String(255), nullable=True),
         sa.Column('stripe_price_id', sa.String(255), nullable=True),
         sa.Column('stripe_product_id', sa.String(255), nullable=True),
-        sa.Column('plan_type', postgresql.ENUM('FREE', 'PRO', 'ENTERPRISE', name='plantype'), nullable=False),
-        sa.Column('status', postgresql.ENUM('ACTIVE', 'TRIALING', 'CANCELLED', 'PAST_DUE', 'UNPAID', 'INCOMPLETE', name='subscriptionstatus'), nullable=False),
+        sa.Column('plan_type', postgresql.ENUM('FREE', 'PRO', 'GROWTH', 'SCALE', 'ENTERPRISE', name='plantype', create_type=False), nullable=False),
+        sa.Column('status', postgresql.ENUM('ACTIVE', 'TRIALING', 'CANCELLED', 'PAST_DUE', 'UNPAID', 'INCOMPLETE', name='subscriptionstatus', create_type=False), nullable=False),
         sa.Column('amount', sa.Float(), nullable=True, server_default='0'),
         sa.Column('currency', sa.String(3), nullable=True, server_default='usd'),
         sa.Column('interval', sa.String(20), nullable=True, server_default='month'),
-        sa.Column('search_limit', sa.Integer(), nullable=True, server_default='1000'),
-        sa.Column('scrape_limit', sa.Integer(), nullable=True, server_default='10000'),
-        sa.Column('rate_limit', sa.String(50), nullable=True, server_default='100/hour'),
+        sa.Column('search_limit', sa.Integer(), nullable=True, server_default='5000'),
+        sa.Column('scrape_limit', sa.Integer(), nullable=True, server_default='500'),
+        sa.Column('rate_limit', sa.String(50), nullable=True, server_default='10/minute'),
         sa.Column('features', sa.JSON(), nullable=True),
         sa.Column('trial_start', sa.DateTime(timezone=True), nullable=True),
         sa.Column('trial_end', sa.DateTime(timezone=True), nullable=True),
@@ -218,16 +222,20 @@ def upgrade():
         batch_op.create_foreign_key('fk_api_keys_user_id', 'users', ['user_id'], ['id'])
         batch_op.create_index('idx_api_keys_user_id', ['user_id'])
     
-    # Insert default plans
+    # Insert default plans - competitive pricing based on Tavily/Exa/Brave analysis
+    # Key: 5x free tier, 50%+ cheaper than Tavily at all tiers
+    # Yearly pricing = 10 months (17% off / 2 months free)
     op.execute("""
-        INSERT INTO plans (name, display_name, description, price, search_limit, scrape_limit, rate_limit, features)
+        INSERT INTO plans (name, display_name, description, price, price_yearly, search_limit, scrape_limit, rate_limit, features)
         VALUES 
-        ('free', 'Free Plan', 'Get started with basic features', 0, 1000, 10000, '100/hour', 
-         '{"api_access": true, "webhook_support": false, "priority_support": false}'::jsonb),
-        ('pro', 'Pro Plan', 'Unlimited searches and scrapes', 20, NULL, NULL, '1000/hour',
-         '{"api_access": true, "webhook_support": true, "priority_support": true, "custom_engines": true}'::jsonb),
-        ('enterprise', 'Enterprise Plan', 'Custom limits and dedicated support', 100, NULL, NULL, '10000/hour',
-         '{"api_access": true, "webhook_support": true, "priority_support": true, "custom_engines": true, "dedicated_pool": true, "sla": true}'::jsonb)
+        ('free', 'Free', '5x more free queries than competitors', 0, 0, 5000, 500, '10/minute', 
+         '{"api_access": true, "webhook_support": false, "priority_support": false, "zero_retention": false}'::jsonb),
+        ('pro', 'Pro', 'For serious AI applications', 19, 190, 25000, 5000, '60/minute',
+         '{"api_access": true, "webhook_support": true, "priority_support": false, "zero_retention": true}'::jsonb),
+        ('growth', 'Growth', 'For scaling teams and products', 49, 490, 100000, 25000, '200/minute',
+         '{"api_access": true, "webhook_support": true, "priority_support": true, "custom_engines": true, "zero_retention": true}'::jsonb),
+        ('scale', 'Scale', 'For high-volume AI applications', 149, 1490, 500000, 100000, '1000/minute',
+         '{"api_access": true, "webhook_support": true, "priority_support": true, "custom_engines": true, "dedicated_pool": true, "sla": true, "zero_retention": true}'::jsonb)
     """)
 
 

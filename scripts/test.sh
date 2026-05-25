@@ -1,11 +1,11 @@
 #!/bin/bash
 """
-Test runner script for SearchScrape API.
+Test runner script for UnSearch API.
 """
 
 set -e
 
-echo "🧪 Running SearchScrape API tests..."
+echo "🧪 Running UnSearch API tests..."
 
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then

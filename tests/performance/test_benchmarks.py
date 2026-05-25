@@ -1,5 +1,5 @@
 """
-Performance benchmarks for the SearchScrape API.
+Performance benchmarks for the UnSearch API.
 Uses pytest-benchmark for accurate performance measurements.
 """
 import asyncio
@@ -16,7 +16,7 @@ import os
 from app.services.cache import CacheService
 from app.services.scraping import ContentScrapingService
 from app.services.searxng import SearXNGService
-from app.models.requests import SearchScrapeRequest, ScrapingConfig
+from app.models.requests import UnSearchRequest, ScrapingConfig
 from app.utils.text_processing import (
     sanitize_text, extract_snippet, detect_language, calculate_text_quality
 )
@@ -407,7 +407,7 @@ def test_generate_performance_report():
     """Generate a performance report summary."""
     report = """
     ================================================================================
-    SearchScrape API Performance Benchmark Report
+    UnSearch API Performance Benchmark Report
     ================================================================================
     
     Test Environment:

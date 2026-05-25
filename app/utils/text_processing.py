@@ -3,7 +3,7 @@ Text processing utilities for content extraction and sanitization.
 """
 import re
 import html
-from typing import List, Optional
+from typing import Dict, List, Optional
 import unicodedata
 from langdetect import detect, LangDetectException
 import nltk
@@ -51,6 +51,116 @@ def sanitize_text(text: str) -> str:
     text = text.strip()
     
     return text
+
+
+def clean_text(text: str, lowercase: bool = False, remove_punctuation: bool = False) -> str:
+    """
+    Clean text by normalizing whitespace and optionally lowercasing/removing punctuation.
+    
+    Args:
+        text: Text to clean
+        lowercase: Whether to convert to lowercase
+        remove_punctuation: Whether to remove punctuation
+        
+    Returns:
+        Cleaned text
+    """
+    if not text:
+        return ""
+    
+    # First sanitize
+    text = sanitize_text(text)
+    
+    # Optionally lowercase
+    if lowercase:
+        text = text.lower()
+    
+    # Optionally remove punctuation
+    if remove_punctuation:
+        text = re.sub(r'[^\w\s]', '', text)
+    
+    # Normalize multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+
+def clean_tokens(tokens: List[str], language: str = 'english') -> List[str]:
+    """
+    Clean a list of tokens by removing stopwords and non-alphabetic tokens.
+    
+    Args:
+        tokens: List of tokens to clean
+        language: Language for stopword removal
+        
+    Returns:
+        Cleaned list of tokens
+    """
+    try:
+        stop_words = set(stopwords.words(language))
+    except Exception:
+        stop_words = set()
+    
+    cleaned = []
+    for token in tokens:
+        token = token.lower().strip()
+        if token and token.isalpha() and token not in stop_words and len(token) > 1:
+            cleaned.append(token)
+    
+    return cleaned
+
+
+def extract_entities(text: str, entity_types: Optional[List[str]] = None) -> Dict[str, List[str]]:
+    """
+    Extract named entities from text using simple pattern matching.
+    
+    Args:
+        text: Text to extract entities from
+        entity_types: Optional list of entity types to extract
+        
+    Returns:
+        Dictionary mapping entity types to lists of found entities
+    """
+    import re
+    
+    entities = {
+        'emails': [],
+        'urls': [],
+        'phone_numbers': [],
+        'dates': [],
+        'currencies': []
+    }
+    
+    # Extract emails
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    entities['emails'] = re.findall(email_pattern, text)
+    
+    # Extract URLs
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    entities['urls'] = re.findall(url_pattern, text)
+    
+    # Extract phone numbers (basic pattern)
+    phone_pattern = r'[\+]?[(]?[0-9]{1,4}[)]?[-\s\./0-9]{7,}'
+    entities['phone_numbers'] = re.findall(phone_pattern, text)
+    
+    # Extract dates (basic patterns)
+    date_patterns = [
+        r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',
+        r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',
+        r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}'
+    ]
+    for pattern in date_patterns:
+        entities['dates'].extend(re.findall(pattern, text, re.IGNORECASE))
+    
+    # Extract currencies
+    currency_pattern = r'[\$\€\£\¥]\s*\d+(?:,\d{3})*(?:\.\d{2})?'
+    entities['currencies'] = re.findall(currency_pattern, text)
+    
+    # Filter by requested entity types
+    if entity_types:
+        entities = {k: v for k, v in entities.items() if k in entity_types}
+    
+    return entities
 
 
 def extract_snippet(text: str, query: str, max_length: int = 200, context_words: int = 10) -> str:

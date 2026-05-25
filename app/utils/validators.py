@@ -1,5 +1,5 @@
 """
-Validation utilities for the SearchScrape API.
+Validation utilities for the UnSearch API.
 """
 import re
 from typing import List, Optional, Dict, Any

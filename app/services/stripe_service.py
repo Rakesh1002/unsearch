@@ -11,7 +11,8 @@ from app.models.users import (
     User, Subscription, Plan, Invoice, WebhookEvent,
     PlanType, SubscriptionStatus
 )
-from app.services.database import DatabaseService
+from app.services.core.database import DatabaseService, get_database_service
+from fastapi import Depends
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -67,17 +68,22 @@ class StripeService:
             await self.create_customer(user)
         
         try:
-            # Create Stripe subscription
-            stripe_sub = stripe.Subscription.create(
-                customer=user.stripe_customer_id,
-                items=[{"price": price_id}],
-                trial_period_days=trial_days,
-                payment_behavior="default_incomplete",
-                expand=["latest_invoice.payment_intent"],
-                metadata={
+            # Build subscription parameters
+            # Only include trial_period_days if > 0 (Stripe requires minimum 1 day)
+            sub_params = {
+                "customer": user.stripe_customer_id,
+                "items": [{"price": price_id}],
+                "payment_behavior": "default_incomplete",
+                "expand": ["latest_invoice.payment_intent"],
+                "metadata": {
                     "user_id": str(user.id)
                 }
-            )
+            }
+            if trial_days > 0:
+                sub_params["trial_period_days"] = trial_days
+            
+            # Create Stripe subscription
+            stripe_sub = stripe.Subscription.create(**sub_params)
             
             # Get plan details
             plan = await self.db.get_plan_by_price_id(price_id)
@@ -93,9 +99,9 @@ class StripeService:
                 amount=stripe_sub.items.data[0].price.unit_amount / 100,
                 currency=stripe_sub.currency,
                 interval=stripe_sub.items.data[0].price.recurring.interval,
-                search_limit=plan.search_limit if plan else 1000,
-                scrape_limit=plan.scrape_limit if plan else 10000,
-                rate_limit=plan.rate_limit if plan else "100/hour",
+                search_limit=plan.search_limit if plan else 5000,
+                scrape_limit=plan.scrape_limit if plan else 500,
+                rate_limit=plan.rate_limit if plan else "10/minute",
                 features=plan.features if plan else {},
                 trial_start=datetime.fromtimestamp(stripe_sub.trial_start) if stripe_sub.trial_start else None,
                 trial_end=datetime.fromtimestamp(stripe_sub.trial_end) if stripe_sub.trial_end else None,
@@ -151,6 +157,34 @@ class StripeService:
                         error=str(e))
             raise
     
+    async def cancel_all_subscriptions(self, customer_id: str) -> None:
+        """Cancel all active subscriptions for a customer (used for account deletion)."""
+        try:
+            # List all active subscriptions for this customer
+            subscriptions = stripe.Subscription.list(
+                customer=customer_id,
+                status="active",
+                limit=100
+            )
+            
+            # Cancel each subscription immediately
+            for sub in subscriptions.auto_paging_iter():
+                try:
+                    stripe.Subscription.delete(sub.id)
+                    logger.info("subscription_cancelled_for_deletion",
+                               subscription_id=sub.id,
+                               customer_id=customer_id)
+                except stripe.error.StripeError as e:
+                    logger.warning("subscription_cancel_failed",
+                                  subscription_id=sub.id,
+                                  error=str(e))
+                    
+        except stripe.error.StripeError as e:
+            logger.error("cancel_all_subscriptions_failed",
+                        customer_id=customer_id,
+                        error=str(e))
+            raise
+    
     async def update_subscription(self, subscription: Subscription, new_price_id: str) -> Subscription:
         """Update subscription to a different plan."""
         try:
@@ -177,7 +211,7 @@ class StripeService:
             subscription.amount = stripe_sub.items.data[0].price.unit_amount / 100
             subscription.search_limit = plan.search_limit if plan else None
             subscription.scrape_limit = plan.scrape_limit if plan else None
-            subscription.rate_limit = plan.rate_limit if plan else "1000/hour"
+            subscription.rate_limit = plan.rate_limit if plan else "10/minute"
             subscription.features = plan.features if plan else {}
             
             await self.db.update_subscription(subscription)
@@ -240,6 +274,16 @@ class StripeService:
             await self.create_customer(user)
         
         try:
+            # Build subscription_data - only include trial_period_days if > 0
+            # Stripe requires minimum 1 day if trial_period_days is specified
+            subscription_data = {
+                "metadata": {
+                    "user_id": str(user.id)
+                }
+            }
+            if trial_days > 0:
+                subscription_data["trial_period_days"] = trial_days
+            
             session = stripe.checkout.Session.create(
                 customer=user.stripe_customer_id,
                 payment_method_types=["card"],
@@ -250,12 +294,7 @@ class StripeService:
                 mode="subscription",
                 success_url=success_url,
                 cancel_url=cancel_url,
-                subscription_data={
-                    "trial_period_days": trial_days,
-                    "metadata": {
-                        "user_id": str(user.id)
-                    }
-                }
+                subscription_data=subscription_data
             )
             
             logger.info("checkout_session_created",
@@ -369,9 +408,9 @@ class StripeService:
             amount=stripe_sub.items.data[0].price.unit_amount / 100,
             currency=stripe_sub.currency,
             interval=stripe_sub.items.data[0].price.recurring.interval,
-            search_limit=plan.search_limit if plan else 1000,
-            scrape_limit=plan.scrape_limit if plan else 10000,
-            rate_limit=plan.rate_limit if plan else "100/hour",
+            search_limit=plan.search_limit if plan else 5000,
+            scrape_limit=plan.scrape_limit if plan else 500,
+            rate_limit=plan.rate_limit if plan else "10/minute",
             features=plan.features if plan else {},
             trial_start=datetime.fromtimestamp(stripe_sub.trial_start) if stripe_sub.trial_start else None,
             trial_end=datetime.fromtimestamp(stripe_sub.trial_end) if stripe_sub.trial_end else None,
@@ -475,46 +514,111 @@ class StripeService:
         if not plan:
             return PlanType.FREE
         
-        if "pro" in plan.name.lower():
+        plan_name = plan.name.lower()
+        if "scale" in plan_name:
+            return PlanType.SCALE
+        elif "growth" in plan_name:
+            return PlanType.GROWTH
+        elif "pro" in plan_name:
             return PlanType.PRO
-        elif "enterprise" in plan.name.lower():
+        elif "enterprise" in plan_name:
             return PlanType.ENTERPRISE
         else:
             return PlanType.FREE
     
     async def setup_default_plans(self):
         """Set up default pricing plans in Stripe and database."""
+        # New pricing structure based on competitive analysis ( Tavily, Exa, Brave)
+        # Key differentiators: 5x free tier, 50%+ cheaper than Tavily
         plans_config = [
+            # Free tier - 5x more than Tavily's 1,000
             {
                 "name": "free",
-                "display_name": "Free Plan",
-                "description": "Perfect for getting started",
+                "display_name": "Free",
+                "description": "5x more free queries than competitors",
                 "price": 0,
-                "search_limit": 1000,
-                "scrape_limit": 10000,
-                "rate_limit": "100/hour",
+                "search_limit": 5000,      # 5,000 queries/month (5x Tavily)
+                "scrape_limit": 500,       # 500 scrapes/month
+                "rate_limit": "10/minute", # 10 req/min
                 "features": {
                     "api_access": True,
                     "webhook_support": False,
-                    "priority_support": False
+                    "priority_support": False,
+                    "zero_retention": False
                 }
             },
+            # Pro tier - $19/mo, 53% cheaper than Tavily's $30
             {
                 "name": "pro",
-                "display_name": "Pro Plan",
-                "description": "Unlimited searches and scrapes",
-                "price": 20.00,
-                "search_limit": None,  # Unlimited
-                "scrape_limit": None,  # Unlimited
-                "rate_limit": "1000/hour",
+                "display_name": "Pro",
+                "description": "For serious AI applications",
+                "price": 19.00,
+                "search_limit": 25000,      # 25,000 queries/month
+                "scrape_limit": 5000,       # 5,000 scrapes/month
+                "rate_limit": "60/minute",  # 60 req/min
+                "features": {
+                    "api_access": True,
+                    "webhook_support": True,
+                    "priority_support": False,
+                    "zero_retention": True
+                }
+            },
+            # Growth tier - $49/mo, best value for scaling
+            {
+                "name": "growth",
+                "display_name": "Growth",
+                "description": "For scaling teams and products",
+                "price": 49.00,
+                "search_limit": 100000,     # 100,000 queries/month
+                "scrape_limit": 25000,      # 25,000 scrapes/month
+                "rate_limit": "200/minute", # 200 req/min
                 "features": {
                     "api_access": True,
                     "webhook_support": True,
                     "priority_support": True,
-                    "custom_engines": True
+                    "custom_engines": True,
+                    "zero_retention": True
+                }
+            },
+            # Scale tier - $149/mo, 60% cheaper than Tavily's $500
+            {
+                "name": "scale",
+                "display_name": "Scale",
+                "description": "For high-volume AI applications",
+                "price": 149.00,
+                "search_limit": 500000,      # 500,000 queries/month
+                "scrape_limit": 100000,      # 100,000 scrapes/month
+                "rate_limit": "1000/minute", # 1,000 req/min
+                "features": {
+                    "api_access": True,
+                    "webhook_support": True,
+                    "priority_support": True,
+                    "custom_engines": True,
+                    "dedicated_pool": True,
+                    "sla": True,
+                    "zero_retention": True
                 }
             }
         ]
+        
+        # Get configured Stripe price IDs from settings
+        stripe_ids = {
+            "pro": {
+                "product": settings.stripe_pro_product_id,
+                "monthly": settings.stripe_pro_monthly_price_id,
+                "yearly": settings.stripe_pro_yearly_price_id
+            },
+            "growth": {
+                "product": settings.stripe_growth_product_id,
+                "monthly": settings.stripe_growth_monthly_price_id,
+                "yearly": settings.stripe_growth_yearly_price_id
+            },
+            "scale": {
+                "product": settings.stripe_scale_product_id,
+                "monthly": settings.stripe_scale_monthly_price_id,
+                "yearly": settings.stripe_scale_yearly_price_id
+            }
+        }
         
         for plan_config in plans_config:
             # Check if plan exists
@@ -522,28 +626,17 @@ class StripeService:
             if existing:
                 continue
             
-            # Create Stripe product and price if not free
-            if plan_config["price"] > 0:
-                product = stripe.Product.create(
-                    name=plan_config["display_name"],
-                    description=plan_config["description"],
-                    metadata={
-                        "plan_name": plan_config["name"]
-                    }
-                )
-                
-                price = stripe.Price.create(
-                    product=product.id,
-                    unit_amount=int(plan_config["price"] * 100),  # Convert to cents
-                    currency="usd",
-                    recurring={"interval": "month"}
-                )
-                
-                stripe_product_id = product.id
-                stripe_price_id = price.id
+            # Get Stripe IDs from config (for paid plans)
+            plan_name = plan_config["name"]
+            if plan_name in stripe_ids and plan_config["price"] > 0:
+                ids = stripe_ids[plan_name]
+                stripe_product_id = ids["product"] or None
+                stripe_price_id = ids["monthly"] or None
+                stripe_price_id_yearly = ids["yearly"] or None
             else:
                 stripe_product_id = None
                 stripe_price_id = None
+                stripe_price_id_yearly = None
             
             # Create plan in database
             plan = Plan(
@@ -552,7 +645,9 @@ class StripeService:
                 description=plan_config["description"],
                 stripe_product_id=stripe_product_id,
                 stripe_price_id=stripe_price_id,
+                stripe_price_id_yearly=stripe_price_id_yearly,
                 price=plan_config["price"],
+                price_yearly=plan_config["price"] * 10 if plan_config["price"] > 0 else 0,
                 currency="usd",
                 interval="month",
                 search_limit=plan_config["search_limit"],
@@ -567,14 +662,15 @@ class StripeService:
             
             logger.info("plan_created",
                        name=plan_config["name"],
-                       price=plan_config["price"])
+                       price=plan_config["price"],
+                       stripe_price_id=stripe_price_id)
 
 
 # Singleton instance
 _stripe_service: Optional[StripeService] = None
 
 
-async def get_stripe_service(db_service: DatabaseService) -> StripeService:
+async def get_stripe_service(db_service: DatabaseService = Depends(get_database_service)) -> StripeService:
     """Get or create Stripe service instance."""
     global _stripe_service
     

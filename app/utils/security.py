@@ -1,5 +1,5 @@
 """
-Security utilities for the SearchScrape API.
+Security utilities for the UnSearch API.
 """
 import hashlib
 import hmac

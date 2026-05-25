@@ -12,6 +12,12 @@ This document provides comprehensive examples of using the UnSearch API.
 6. [Custom Scraping Selectors](#custom-scraping-selectors)
 7. [Error Handling](#error-handling)
 8. [Advanced Usage](#advanced-usage)
+9. [Agent API (Tavily-Compatible)](#agent-api-tavily-compatible)
+10. [Neural Search (Exa-Compatible)](#neural-search-exa-compatible)
+11. [Deep Research API](#deep-research-api)
+12. [Topic Monitoring](#topic-monitoring)
+13. [Fact Verification](#fact-verification)
+14. [Available AI Models](#available-ai-models)
 
 ## Authentication
 
@@ -477,4 +483,295 @@ The API implements rate limiting to ensure fair usage:
 response = await client.post("/api/v1/search", json={...})
 print(f"Remaining requests: {response.headers.get('X-RateLimit-Remaining')}")
 print(f"Limit resets at: {response.headers.get('X-RateLimit-Reset')}")
+```
+
+---
+
+## Agent API (Tavily-Compatible)
+
+The Agent API provides Tavily-compatible endpoints for easy migration. Simply change your base URL.
+
+### Agent Search
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/agent/search" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is machine learning?",
+    "search_depth": "basic",
+    "max_results": 5,
+    "include_answer": true
+  }'
+```
+
+### Agent Search with AI Answer
+
+```python
+response = await client.post(
+    "http://localhost:8000/api/v1/agent/search",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "query": "How does photosynthesis work?",
+        "search_depth": "advanced",
+        "max_results": 10,
+        "include_answer": "production",  # Use gpt-oss-120b
+        "include_raw_content": True
+    }
+)
+
+data = response.json()
+print(f"Answer: {data['answer']}")
+print(f"Model used: {data['model_used']}")
+```
+
+### Agent Extract (Content Extraction)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/agent/extract" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "urls": [
+      "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      "https://docs.python.org/3/tutorial/"
+    ],
+    "extract_depth": "advanced"
+  }'
+```
+
+---
+
+## Neural Search (Exa-Compatible)
+
+Semantic search using embeddings for conceptual matching.
+
+### Basic Neural Search
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/neural/search" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "how do neural networks learn",
+    "num_results": 10,
+    "use_autoprompt": true,
+    "include_highlights": true
+  }'
+```
+
+### Find Similar Content
+
+```python
+response = await client.post(
+    "http://localhost:8000/api/v1/neural/similar",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "url": "https://example.com/article-about-ai",
+        "num_results": 10,
+        "exclude_source": True
+    }
+)
+
+for result in response.json()['similar']:
+    print(f"{result['title']} - Score: {result['score']}")
+```
+
+### Extract Highlights
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/neural/highlights" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "benefits of machine learning",
+    "content": "Machine learning is a subset of AI...",
+    "num_highlights": 3
+  }'
+```
+
+---
+
+## Deep Research API
+
+Multi-source research with AI synthesis for comprehensive topic coverage.
+
+### Quick Research
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/rag/research" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "quantum computing applications",
+    "depth": "quick",
+    "scrape_content": true
+  }'
+```
+
+### Deep Research with Analysis
+
+```python
+response = await client.post(
+    "http://localhost:8000/api/v1/agent/research",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "query": "Impact of AI on healthcare",
+        "depth": "deep",
+        "max_sources": 20,
+        "include_analysis": True,
+        "include_summary": True,
+        "focus_areas": ["diagnostics", "drug discovery"]
+    }
+)
+
+data = response.json()
+print(f"Executive Summary: {data['executive_summary']}")
+print(f"Key Findings: {data['key_findings']}")
+print(f"Sources analyzed: {len(data['sources'])}")
+```
+
+---
+
+## Topic Monitoring
+
+Real-time web monitoring with webhook alerts.
+
+### Create a Topic Monitor
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/monitor/topics" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "AI regulations",
+    "keywords": ["GDPR", "AI Act", "OpenAI"],
+    "check_interval_minutes": 60,
+    "webhook_url": "https://your-app.com/webhooks/monitor",
+    "deep_analysis": true
+  }'
+```
+
+### List Active Monitors
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/monitor/topics" \
+  -H "X-API-Key: your-api-key"
+```
+
+### Get Monitor Results
+
+```python
+response = await client.get(
+    f"http://localhost:8000/api/v1/monitor/topics/{monitor_id}/results",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+for result in response.json()['results']:
+    print(f"New content found at {result['timestamp']}")
+    for item in result['new_results']:
+        print(f"  - {item['title']}: {item['url']}")
+```
+
+---
+
+## Fact Verification
+
+Verify claims against multiple sources with credibility scoring.
+
+### Verify a Claim
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/verify/claim" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claim": "GPT-4 was released in March 2023",
+    "depth": "thorough",
+    "include_sources": true
+  }'
+```
+
+### Response Example
+
+```json
+{
+  "claim": "GPT-4 was released in March 2023",
+  "verdict": "true",
+  "confidence": 95,
+  "summary": "GPT-4 was officially released by OpenAI on March 14, 2023.",
+  "supporting_evidence": [
+    {
+      "title": "OpenAI GPT-4 Announcement",
+      "url": "https://openai.com/research/gpt-4",
+      "snippet": "We've created GPT-4, released on March 14, 2023...",
+      "stance": "supporting"
+    }
+  ],
+  "contradicting_evidence": [],
+  "sources_checked": 12
+}
+```
+
+### Check Source Credibility
+
+```python
+response = await client.post(
+    "http://localhost:8000/api/v1/verify/source",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "url": "https://www.reuters.com"
+    }
+)
+
+data = response.json()
+print(f"Domain: {data['domain']}")
+print(f"Credibility Score: {data['credibility_score']}/100")
+print(f"Category: {data['category']}")
+print(f"Bias Rating: {data['bias_rating']}")
+```
+
+---
+
+## Available AI Models
+
+UnSearch supports multiple AI models for different use cases.
+
+### List Available Models
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/agent/models" \
+  -H "X-API-Key: your-api-key"
+```
+
+### Model Tiers
+
+| Tier | Model | Use Case |
+|------|-------|----------|
+| **speed** | llama-3.1-8b-instruct-fast | Simple queries, low latency |
+| **quality** | llama-3.3-70b-instruct-fp8-fast | Balanced quality/speed |
+| **reasoning** | qwq-32b | Complex analytical queries |
+| **production** | gpt-oss-120b | Maximum quality, enterprise |
+
+### Using Specific Model Tiers
+
+```python
+# Use reasoning model for complex analysis
+response = await client.post(
+    "http://localhost:8000/api/v1/agent/search",
+    json={
+        "query": "Compare the pros and cons of microservices vs monoliths",
+        "include_answer": True,
+        "model": "reasoning"  # Uses qwq-32b
+    }
+)
+
+# Use production model for maximum quality
+response = await client.post(
+    "http://localhost:8000/api/v1/agent/search",
+    json={
+        "query": "Explain quantum entanglement",
+        "include_answer": "production"  # Uses gpt-oss-120b
+    }
+)
 ```

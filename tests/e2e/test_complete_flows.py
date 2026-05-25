@@ -1,5 +1,5 @@
 """
-End-to-end tests for complete user flows in the SearchScrape API.
+End-to-end tests for complete user flows in the UnSearch API.
 These tests run against a fully deployed environment.
 """
 import asyncio
@@ -18,7 +18,7 @@ API_KEY = os.getenv("E2E_API_KEY", "test-api-key")
 WEBHOOK_URL = os.getenv("E2E_WEBHOOK_URL", "https://webhook.site/test")
 
 
-class TestSearchScrapeE2E:
+class TestUnSearchE2E:
     """Complete end-to-end test scenarios."""
     
     @pytest.fixture

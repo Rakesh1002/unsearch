@@ -8,10 +8,10 @@ import asyncio
 from datetime import datetime
 
 from app.config import get_settings
-from app.services.searxng import SearXNGService
-from app.services.scraping import ContentScrapingService
-from app.services.database import DatabaseService
-from app.models.requests import SearchScrapeRequest, ScrapingConfig
+from app.services.core.searxng import SearXNGService
+from app.services.scraping.scraping import ContentScrapingService
+from app.services.core.database import DatabaseService
+from app.models.requests import UnSearchRequest, ScrapingConfig
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -19,7 +19,7 @@ settings = get_settings()
 
 # Initialize Celery
 celery = Celery(
-    'searchscrape',
+    'UnSearch',
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend
 )
@@ -64,7 +64,7 @@ async def process_async_search_scrape(self, job_id: str, request_data: Dict[str,
     
     Args:
         job_id: Scraping job ID
-        request_data: SearchScrapeRequest data as dict
+        request_data: UnSearchRequest data as dict
     """
     logger.info("async_search_scrape_started", job_id=job_id)
     
@@ -86,7 +86,7 @@ async def process_async_search_scrape(self, job_id: str, request_data: Dict[str,
         )
         
         # Create request object
-        request = SearchScrapeRequest(**request_data)
+        request = UnSearchRequest(**request_data)
         
         # Perform search
         search_results = await searxng.search(
@@ -108,7 +108,12 @@ async def process_async_search_scrape(self, job_id: str, request_data: Dict[str,
                 urls=urls,
                 selectors=request.scrape_selectors,
                 extract_images=request.include_images,
-                extract_links=request.include_links
+                extract_links=request.include_links,
+                javascript_rendering=request.js_mode,
+                js_mode=request.js_mode,
+                response_format=request.output_format,
+                screenshot=request.screenshot,
+                pdf=request.pdf,
             )
             
             scraped_contents = await scraper.scrape_urls(urls[:10], scraping_config)

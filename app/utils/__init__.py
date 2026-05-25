@@ -1,5 +1,5 @@
 """
-Utility functions for the SearchScrape API.
+Utility functions for the UnSearch API.
 """
 from app.utils.text_processing import (
     sanitize_text,
@@ -33,7 +33,7 @@ from app.utils.security import (
     SecurityHeaders
 )
 from app.utils.exceptions import (
-    SearchScrapeException,
+    UnSearchException,
     SearXNGException,
     ScrapingException,
     CacheException,
@@ -77,7 +77,7 @@ __all__ = [
     "verify_csrf_token",
     "SecurityHeaders",
     # Exceptions
-    "SearchScrapeException",
+    "UnSearchException",
     "SearXNGException",
     "ScrapingException",
     "CacheException",

@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   api:
     build: .
-    container_name: searchscrape-api
+    container_name: unsearch-api
     ports:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
       - SEARXNG_URL=http://searxng:8080
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
       - API_KEYS=${API_KEYS:-}
       - LOG_LEVEL=INFO
       - WORKERS=4
@@ -22,7 +20,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - searchscrape-net
+      - unsearch-net
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -35,7 +33,7 @@ services:
 
   searxng:
     image: searxng/searxng:latest
-    container_name: searchscrape-searxng
+    container_name: unsearch-searxng
     ports:
       - "8080:8080"
     environment:
@@ -44,7 +42,7 @@ services:
     volumes:
       - ./searxng:/etc/searxng:rw
     networks:
-      - searchscrape-net
+      - unsearch-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
@@ -61,14 +59,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: searchscrape-redis
+    container_name: unsearch-redis
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
-      - searchscrape-net
+      - unsearch-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -78,20 +76,20 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: searchscrape-postgres
+    container_name: unsearch-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: searchscrape
-      POSTGRES_USER: searchscrape
-      POSTGRES_PASSWORD: searchscrape123
+      POSTGRES_DB: unsearch
+      POSTGRES_USER: unsearch
+      POSTGRES_PASSWORD: unsearch123
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - searchscrape-net
+      - unsearch-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U searchscrape"]
+      test: ["CMD-SHELL", "pg_isready -U unsearch"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,12 +97,12 @@ services:
 
   celery-worker:
     build: .
-    container_name: searchscrape-celery-worker
+    container_name: unsearch-celery-worker
     command: celery -A app.workers.tasks worker --loglevel=info --concurrency=4
     environment:
       - SEARXNG_URL=http://searxng:8080
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
@@ -112,30 +110,30 @@ services:
       - postgres
       - searxng
     networks:
-      - searchscrape-net
+      - unsearch-net
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
 
   celery-beat:
     build: .
-    container_name: searchscrape-celery-beat
+    container_name: unsearch-celery-beat
     command: celery -A app.workers.tasks beat --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://searchscrape:searchscrape123@postgres:5432/searchscrape
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
       - postgres
     networks:
-      - searchscrape-net
+      - unsearch-net
     restart: unless-stopped
 
   flower:
     build: .
-    container_name: searchscrape-flower
+    container_name: unsearch-flower
     command: celery -A app.workers.tasks flower --port=5555
     ports:
       - "5555:5555"
@@ -146,12 +144,12 @@ services:
       - redis
       - celery-worker
     networks:
-      - searchscrape-net
+      - unsearch-net
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
-    container_name: searchscrape-nginx
+    container_name: unsearch-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -161,11 +159,11 @@ services:
     depends_on:
       - api
     networks:
-      - searchscrape-net
+      - unsearch-net
     restart: unless-stopped
 
 networks:
-  searchscrape-net:
+  unsearch-net:
     driver: bridge
 
 volumes:

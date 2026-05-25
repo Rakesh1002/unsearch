@@ -1,16 +1,16 @@
 #!/bin/bash
 """
-Deployment script for SearchScrape API.
+Deployment script for UnSearch API.
 """
 
 set -e
 
 # Configuration
-APP_NAME="searchscrape-api"
-DOCKER_IMAGE="searchscrape/api"
+APP_NAME="unsearch-api"
+DOCKER_IMAGE="unsearch/api"
 DOCKER_TAG="${1:-latest}"
 
-echo "🚀 Deploying SearchScrape API..."
+echo "🚀 Deploying UnSearch API..."
 echo "📦 Image: $DOCKER_IMAGE:$DOCKER_TAG"
 
 # Check if Docker is available

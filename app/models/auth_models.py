@@ -43,11 +43,18 @@ class CreateAPIKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     scopes: Optional[List[str]] = ["read", "write"]
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365, description="Days until key expires (1-365)")
 
 
 class ResetPasswordRequest(BaseModel):
     """Password reset request."""
     email: EmailStr
+
+
+class ResetPasswordConfirmRequest(BaseModel):
+    """Password reset confirmation (token + new password)."""
+    token: str
+    password: str = Field(..., min_length=8, max_length=100)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -68,11 +75,24 @@ class UpdateSubscriptionRequest(BaseModel):
 
 
 class CreateCheckoutSessionRequest(BaseModel):
-    """Create Stripe checkout session request."""
-    price_id: str
+    """Create Stripe checkout session request.
+    
+    Accepts either:
+    - price_id directly (Stripe price ID)
+    - OR plan_id + billing_period (resolved to price_id via plans table)
+    """
+    price_id: Optional[str] = None
+    plan_id: Optional[str] = None
+    billing_period: Optional[str] = None  # "monthly" or "yearly"
     success_url: str
     cancel_url: str
     trial_days: Optional[int] = 0
+    
+    @validator('billing_period')
+    def validate_billing_period(cls, v):
+        if v and v not in ("monthly", "yearly"):
+            raise ValueError('billing_period must be "monthly" or "yearly"')
+        return v
 
 
 # ==================== Response Models ====================
@@ -104,18 +124,36 @@ class APIKeyResponse(BaseModel):
     name: str
     description: Optional[str]
     scopes: List[str]
-    last_used_at: Optional[datetime]
+    last_used_at: Optional[datetime] = None
     created_at: datetime
 
 
+class UsageDetailResponse(BaseModel):
+    """Detailed usage breakdown."""
+    used: int
+    limit: Optional[int]
+    remaining: Optional[int]
+    unlimited: bool
+
+
 class UsageResponse(BaseModel):
-    """Usage statistics response."""
-    period: Dict[str, str]
-    searches: Dict[str, Any]
-    scrapes: Dict[str, Any]
-    api_calls: int
-    usage_by_engine: Dict[str, int]
-    usage_by_day: Dict[str, int]
+    """Usage statistics response - matches frontend UsageStats interface."""
+    # Legacy fields for existing frontend
+    total_queries: int = 0
+    total_scrapes: int = 0
+    queries_today: int = 0
+    scrapes_today: int = 0
+    queries_this_month: int = 0
+    scrapes_this_month: int = 0
+    daily_usage: List[Dict[str, Any]] = []
+    
+    # Detailed breakdown
+    period: Optional[Dict[str, str]] = None
+    searches: Optional[UsageDetailResponse] = None
+    scrapes: Optional[UsageDetailResponse] = None
+    api_calls: int = 0
+    usage_by_engine: Dict[str, int] = {}
+    usage_by_day: Dict[str, int] = {}
 
 
 class SubscriptionResponse(BaseModel):
@@ -172,8 +210,24 @@ class InvoiceResponse(BaseModel):
 class CheckoutSessionResponse(BaseModel):
     """Checkout session response."""
     checkout_url: str
+    url: Optional[str] = None  # alias for frontend; set same as checkout_url in endpoint
+
+
+class BillingPortalRequest(BaseModel):
+    """Billing portal session request (POST body)."""
+    return_url: Optional[str] = None
 
 
 class BillingPortalResponse(BaseModel):
     """Billing portal response."""
     portal_url: str
+    url: Optional[str] = None  # alias for frontend; set same as portal_url in endpoint
+
+
+class OAuthSyncRequest(BaseModel):
+    """OAuth sync request for third-party providers (e.g., GitHub)."""
+    provider: str
+    oauth_id: str
+    email: EmailStr
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None

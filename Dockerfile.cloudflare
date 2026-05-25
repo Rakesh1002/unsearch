@@ -1,0 +1,43 @@
+# Cloudflare Containers build for UnSearch FastAPI origin.
+#
+# Differences from Dockerfile (legacy self-hosted multi-worker):
+#   - Single uvicorn worker; CF Containers handle horizontal scaling.
+#   - Port 8080 (CF Containers convention).
+#   - No HEALTHCHECK directive — CF Containers probe via /health endpoint
+#     declared in container config (workers/containers.toml).
+#   - No NLTK download in image (heavy and slow); models lazy-load on first use.
+#   - Builds the alembic migrations into the image but does NOT auto-run them
+#     (D1 migrations run via `wrangler d1 execute`, not alembic, on this stack).
+#   - Entry exposed only via internal CF service binding from the edge Worker;
+#     no public ingress.
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    CONTAINER=true \
+    PORT=8080
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ libxml2-dev libxslt-dev libffi-dev libssl-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root runtime user
+RUN useradd --create-home --shell /bin/bash --uid 10001 app
+WORKDIR /app
+
+# Python deps
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# App source (omit tests, monitoring, alembic migrations from runtime image)
+COPY --chown=app:app app/ ./app/
+COPY --chown=app:app scripts/ ./scripts/
+
+USER app
+
+EXPOSE 8080
+
+# Single worker; CF Containers replicate the container itself for scale.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]

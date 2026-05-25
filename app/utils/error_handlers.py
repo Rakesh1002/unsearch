@@ -1,5 +1,5 @@
 """
-Global error handlers for the SearchScrape API.
+Global error handlers for the UnSearch API.
 """
 import traceback
 from typing import Union
@@ -13,8 +13,8 @@ import structlog
 from app.config import get_settings
 from app.models.responses import ErrorResponse
 from app.utils.exceptions import (
-    SearchScrapeException, SearXNGException, ScrapingException,
-    CacheException, DatabaseException, SearchScrapeHTTPException
+    UnSearchException, SearXNGException, ScrapingException,
+    CacheException, DatabaseException, UnSearchHTTPException
 )
 
 logger = structlog.get_logger(__name__)
@@ -50,7 +50,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
@@ -76,7 +76,7 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
     
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        content=error_response.dict(),
+        content=error_response.model_dump(mode="json"),
         headers={"Retry-After": str(getattr(exc, "retry_after", 60))}
     )
 
@@ -100,7 +100,7 @@ async def searxng_exception_handler(request: Request, exc: SearXNGException) -> 
     
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content=error_response.dict(),
+        content=error_response.model_dump(mode="json"),
         headers={"Retry-After": "60"}
     )
 
@@ -124,7 +124,7 @@ async def scraping_exception_handler(request: Request, exc: ScrapingException) -
     
     return JSONResponse(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
@@ -148,7 +148,7 @@ async def cache_exception_handler(request: Request, exc: CacheException) -> JSON
     
     return JSONResponse(
         status_code=status.HTTP_200_OK,  # Continue processing
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
@@ -171,7 +171,7 @@ async def database_exception_handler(request: Request, exc: DatabaseException) -
     
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content=error_response.dict(),
+        content=error_response.model_dump(mode="json"),
         headers={"Retry-After": "30"}
     )
 
@@ -204,14 +204,14 @@ async def http_error_handler(request: Request, exc: HTTPError) -> JSONResponse:
     
     return JSONResponse(
         status_code=status_code,
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
-async def searchscrape_http_exception_handler(request: Request, exc: SearchScrapeHTTPException) -> JSONResponse:
-    """Handle custom SearchScrape HTTP exceptions."""
+async def UnSearch_http_exception_handler(request: Request, exc: UnSearchHTTPException) -> JSONResponse:
+    """Handle custom UnSearch HTTP exceptions."""
     logger.warning(
-        "searchscrape_http_error",
+        "UnSearch_http_error",
         path=request.url.path,
         error_code=exc.error_code,
         message=exc.message,
@@ -228,7 +228,7 @@ async def searchscrape_http_exception_handler(request: Request, exc: SearchScrap
     
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_response.dict(),
+        content=error_response.model_dump(mode="json"),
         headers=exc.headers
     )
 
@@ -250,7 +250,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     
     # Log to database if possible
     try:
-        from app.services.database import get_database_service
+        from app.services.core.database import get_database_service
         db = await get_database_service()
         await db.log_error(
             error_type=type(exc).__name__,
@@ -277,7 +277,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
@@ -291,7 +291,7 @@ EXCEPTION_HANDLERS = {
     DatabaseException: database_exception_handler,
     HTTPError: http_error_handler,
     TimeoutException: http_error_handler,
-    SearchScrapeHTTPException: searchscrape_http_exception_handler,
+    UnSearchHTTPException: UnSearch_http_exception_handler,
     Exception: generic_exception_handler,
 }
 

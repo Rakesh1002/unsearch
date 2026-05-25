@@ -1,0 +1,101 @@
+# UnSearch Quick Start - One-liner deployment
+# Run with: docker compose -f docker-compose.quickstart.yml up -d
+#
+# This is a minimal setup for getting started quickly.
+# For production, use docker-compose.yml with additional services.
+
+version: '3.8'
+
+services:
+  # UnSearch API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: unsearch-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - SEARXNG_URL=http://searxng:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - LOG_LEVEL=INFO
+      - WORKERS=2
+    depends_on:
+      searxng:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - unsearch
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # SearXNG - Metasearch engine (70+ search engines)
+  searxng:
+    image: searxng/searxng:latest
+    container_name: unsearch-searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET_KEY=changeme-in-production
+    networks:
+      - unsearch
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+  # Redis - Caching
+  redis:
+    image: redis:7-alpine
+    container_name: unsearch-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - unsearch
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  # PostgreSQL - Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: unsearch-postgres
+    environment:
+      POSTGRES_DB: unsearch
+      POSTGRES_USER: unsearch
+      POSTGRES_PASSWORD: unsearch123
+    networks:
+      - unsearch
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unsearch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  unsearch:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:

@@ -40,9 +40,9 @@ SEARCH_ENGINES = [
 ]
 
 
-class SearchScrapeUser(HttpUser):
+class UnSearchUser(HttpUser):
     """
-    Simulates a user interacting with the SearchScrape API.
+    Simulates a user interacting with the UnSearch API.
     """
     wait_time = between(1, 5)  # Wait 1-5 seconds between requests
     
@@ -238,7 +238,7 @@ class MobileUser(HttpUser):
         self.client.headers.update({
             "X-API-Key": API_KEY,
             "Content-Type": "application/json",
-            "User-Agent": "SearchScrape-Mobile/1.0"
+            "User-Agent": "UnSearch-Mobile/1.0"
         })
     
     @task(10)
@@ -403,7 +403,7 @@ if __name__ == "__main__":
     print(f"Users: {config['users']}, Spawn rate: {config['spawn_rate']}, Duration: {config['run_time']}\n")
     
     # Setup Environment
-    env = Environment(user_classes=[SearchScrapeUser, MobileUser], host="http://localhost:8000")
+    env = Environment(user_classes=[UnSearchUser, MobileUser], host="http://localhost:8000")
     env.create_local_runner()
     
     # Start test

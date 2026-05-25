@@ -1,11 +1,11 @@
 #!/bin/bash
 """
-Setup script for SearchScrape API development environment.
+Setup script for UnSearch API development environment.
 """
 
 set -e
 
-echo "🚀 Setting up SearchScrape API development environment..."
+echo "🚀 Setting up UnSearch API development environment..."
 
 # Check if Python 3.11+ is available
 python_version=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+' | head -1)

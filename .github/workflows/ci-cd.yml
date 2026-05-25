@@ -133,7 +133,7 @@ jobs:
 
       - name: Run unit tests with coverage
         env:
-          DATABASE_URL: postgresql://neondb_owner:npg_tDRIiAdg9O4Z@ep-twilight-unit-adgp1erj-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+          DATABASE_URL: postgresql://test:test@localhost:5432/UnSearch_test
           REDIS_URL: redis://localhost:6379
           TEST_MODE: "true"
         run: |
@@ -213,7 +213,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          DATABASE_URL: postgresql://neondb_owner:npg_tDRIiAdg9O4Z@ep-twilight-unit-adgp1erj-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+          DATABASE_URL: postgresql://test:test@localhost:5432/UnSearch_test
           REDIS_URL: redis://localhost:6379
           SEARXNG_URL: http://localhost:8080
           TEST_MODE: "true"

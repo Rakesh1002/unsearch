@@ -1,5 +1,5 @@
 """
-Performance and load tests for the SearchScrape API.
+Performance and load tests for the UnSearch API.
 """
 import pytest
 import asyncio
@@ -323,10 +323,10 @@ class TestCachingPerformance:
     
     def test_cache_hit_performance(self, client, mock_fast_services):
         """Test performance of cache hits."""
-        from app.models.responses import SearchScrapeResponse, SearchMetadata
+        from app.models.responses import UnSearchResponse, SearchMetadata
         
         # Mock cached response
-        cached_response = SearchScrapeResponse(
+        cached_response = UnSearchResponse(
             search_metadata=SearchMetadata(
                 query="cached query",
                 engines_used=["google"],

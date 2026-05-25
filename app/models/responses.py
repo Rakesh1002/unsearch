@@ -15,6 +15,23 @@ class ServiceHealth(BaseModel):
     details: Optional[Dict[str, Any]] = None
 
 
+class ExtractionMetadata(BaseModel):
+    """Metadata about an extraction operation."""
+    extraction_time_ms: int = 0
+    strategy_used: Optional[str] = None
+    tokens_processed: int = 0
+    success: bool = True
+    error: Optional[str] = None
+
+
+class ExtractedContent(BaseModel):
+    """Extracted content from a document."""
+    content: str
+    content_type: str = "text"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    extraction_metadata: Optional[ExtractionMetadata] = None
+
+
 class ContentMetadata(BaseModel):
     """Extracted content metadata."""
     title: Optional[str] = None
@@ -79,9 +96,12 @@ class SearchMetadata(BaseModel):
     results_returned: int
     search_time_ms: int
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    # Relevance filtering info
+    query_intent: Optional[str] = Field(default=None, description="Detected query intent (commercial, definitional, etc.)")
+    relevance_filtered: bool = Field(default=False, description="Whether relevance filtering was applied")
 
 
-class SearchScrapeResponse(BaseModel):
+class UnSearchResponse(BaseModel):
     """Main search and scrape response."""
     search_metadata: SearchMetadata
     results: List[SearchResult]

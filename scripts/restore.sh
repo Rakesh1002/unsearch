@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SearchScrape API Database Restore Script
+# UnSearch API Database Restore Script
 # Restores PostgreSQL database and Redis data from backups
 
 set -e  # Exit on error
@@ -45,9 +45,9 @@ fi
 # Database configuration
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:-searchscrape}"
-DB_USER="${DB_USER:-searchscrape}"
-DB_PASSWORD="${DB_PASSWORD:-searchscrape123}"
+DB_NAME="${DB_NAME:-unsearch}"
+DB_USER="${DB_USER:-unsearch}"
+DB_PASSWORD="${DB_PASSWORD:-unsearch123}"
 
 # Redis configuration
 REDIS_HOST="${REDIS_HOST:-localhost}"
@@ -252,16 +252,16 @@ restore_redis() {
     gunzip -c "$backup_file" > "$temp_file"
     
     # Stop Redis (if using Docker)
-    if command_exists docker && docker ps | grep -q searchscrape-redis; then
+    if command_exists docker && docker ps | grep -q unsearch-redis; then
         log_info "Stopping Redis container..."
-        docker stop searchscrape-redis
+        docker stop unsearch-redis
         
         # Copy dump file
-        docker cp "$temp_file" searchscrape-redis:/data/dump.rdb
+        docker cp "$temp_file" unsearch-redis:/data/dump.rdb
         
         # Start Redis
         log_info "Starting Redis container..."
-        docker start searchscrape-redis
+        docker start unsearch-redis
     else
         # For local Redis
         log_info "Stopping Redis service..."
@@ -325,7 +325,7 @@ restore_application() {
         log_info "Application files restore completed successfully"
         
         # Reload services if running
-        if command_exists docker && docker ps | grep -q searchscrape-api; then
+        if command_exists docker && docker ps | grep -q unsearch-api; then
             log_info "Reloading services..."
             docker compose restart api nginx
         fi
@@ -402,7 +402,7 @@ interactive_restore() {
     while true; do
         echo
         log_info "========================================="
-        log_info "SearchScrape API Restore Menu"
+        log_info "UnSearch API Restore Menu"
         log_info "========================================="
         echo "1) Restore PostgreSQL database"
         echo "2) Restore Redis data"

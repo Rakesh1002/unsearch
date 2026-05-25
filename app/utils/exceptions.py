@@ -1,12 +1,12 @@
 """
-Custom exceptions for the SearchScrape API.
+Custom exceptions for the UnSearch API.
 """
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 
 
-class SearchScrapeException(Exception):
-    """Base exception for SearchScrape API."""
+class UnSearchException(Exception):
+    """Base exception for UnSearch API."""
     
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         self.message = message
@@ -14,43 +14,43 @@ class SearchScrapeException(Exception):
         super().__init__(self.message)
 
 
-class SearXNGException(SearchScrapeException):
+class SearXNGException(UnSearchException):
     """Exception related to SearXNG operations."""
     pass
 
 
-class ScrapingException(SearchScrapeException):
+class ScrapingException(UnSearchException):
     """Exception related to content scraping."""
     pass
 
 
-class CacheException(SearchScrapeException):
+class CacheException(UnSearchException):
     """Exception related to cache operations."""
     pass
 
 
-class DatabaseException(SearchScrapeException):
+class DatabaseException(UnSearchException):
     """Exception related to database operations."""
     pass
 
 
-class RateLimitException(SearchScrapeException):
+class RateLimitException(UnSearchException):
     """Exception for rate limiting violations."""
     pass
 
 
-class AuthenticationException(SearchScrapeException):
+class AuthenticationException(UnSearchException):
     """Exception for authentication failures."""
     pass
 
 
-class ValidationException(SearchScrapeException):
+class ValidationException(UnSearchException):
     """Exception for request validation failures."""
     pass
 
 
 # HTTP Exception classes with proper status codes
-class SearchScrapeHTTPException(HTTPException):
+class UnSearchHTTPException(HTTPException):
     """Base HTTP exception with structured error response."""
     
     def __init__(
@@ -73,7 +73,7 @@ class SearchScrapeHTTPException(HTTPException):
         super().__init__(status_code=status_code, detail=detail, headers=headers)
 
 
-class BadRequestException(SearchScrapeHTTPException):
+class BadRequestException(UnSearchHTTPException):
     """400 Bad Request."""
     
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
@@ -85,7 +85,7 @@ class BadRequestException(SearchScrapeHTTPException):
         )
 
 
-class UnauthorizedException(SearchScrapeHTTPException):
+class UnauthorizedException(UnSearchHTTPException):
     """401 Unauthorized."""
     
     def __init__(self, message: str = "Authentication required", details: Optional[Dict[str, Any]] = None):
@@ -98,7 +98,7 @@ class UnauthorizedException(SearchScrapeHTTPException):
         )
 
 
-class ForbiddenException(SearchScrapeHTTPException):
+class ForbiddenException(UnSearchHTTPException):
     """403 Forbidden."""
     
     def __init__(self, message: str = "Access forbidden", details: Optional[Dict[str, Any]] = None):
@@ -110,7 +110,7 @@ class ForbiddenException(SearchScrapeHTTPException):
         )
 
 
-class NotFoundException(SearchScrapeHTTPException):
+class NotFoundException(UnSearchHTTPException):
     """404 Not Found."""
     
     def __init__(self, message: str = "Resource not found", details: Optional[Dict[str, Any]] = None):
@@ -122,7 +122,7 @@ class NotFoundException(SearchScrapeHTTPException):
         )
 
 
-class TooManyRequestsException(SearchScrapeHTTPException):
+class TooManyRequestsException(UnSearchHTTPException):
     """429 Too Many Requests."""
     
     def __init__(
@@ -144,7 +144,7 @@ class TooManyRequestsException(SearchScrapeHTTPException):
         )
 
 
-class InternalServerErrorException(SearchScrapeHTTPException):
+class InternalServerErrorException(UnSearchHTTPException):
     """500 Internal Server Error."""
     
     def __init__(self, message: str = "Internal server error", details: Optional[Dict[str, Any]] = None):
@@ -156,7 +156,7 @@ class InternalServerErrorException(SearchScrapeHTTPException):
         )
 
 
-class ServiceUnavailableException(SearchScrapeHTTPException):
+class ServiceUnavailableException(UnSearchHTTPException):
     """503 Service Unavailable."""
     
     def __init__(
@@ -178,7 +178,7 @@ class ServiceUnavailableException(SearchScrapeHTTPException):
         )
 
 
-class GatewayTimeoutException(SearchScrapeHTTPException):
+class GatewayTimeoutException(UnSearchHTTPException):
     """504 Gateway Timeout."""
     
     def __init__(self, message: str = "Request timeout", details: Optional[Dict[str, Any]] = None):

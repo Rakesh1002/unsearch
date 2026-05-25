@@ -1,4 +1,4 @@
-# Multi-stage build for SearchScrape API
+# Multi-stage build for UnSearch API
 FROM python:3.11-slim as base
 
 # Install system dependencies

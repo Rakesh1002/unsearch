@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "UnQuest API",
+  "name": "UnSearch API",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
@@ -18,12 +18,12 @@
   "topbarLinks": [
     {
       "name": "Support",
-      "url": "mailto:support@unquest.ai"
+      "url": "mailto:support@unsearch.ai"
     }
   ],
   "topbarCtaButton": {
     "name": "Dashboard",
-    "url": "https://app.unquest.ai"
+    "url": "https://app.unsearch.ai"
   },
   "tabs": [
     {
@@ -35,7 +35,7 @@
     {
       "name": "Documentation",
       "icon": "book-open-cover",
-      "url": "https://docs.unquest.ai"
+      "url": "https://docs.unsearch.ai"
     },
     {
       "name": "GitHub",
@@ -57,6 +57,22 @@
         "authentication",
         "rate-limits",
         "errors"
+      ]
+    },
+    {
+      "group": "Strategy",
+      "pages": [
+        "strategy/README",
+        "strategy/market",
+        "strategy/icp",
+        "strategy/jtbd",
+        "strategy/positioning",
+        "strategy/value-prop",
+        "strategy/user-journey",
+        "strategy/pricing",
+        "strategy/gtm",
+        "strategy/sales-playbook",
+        "strategy/mrr-plan"
       ]
     },
     {

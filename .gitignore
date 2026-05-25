@@ -14,8 +14,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Only ignore top-level Python lib (not apps/web/lib)
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -98,11 +99,26 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
+# Turborepo cache
+.turbo/
+
+# FastAPI pid file
+.fastapi.pid
+
+# Archive directory (optional - remove this line to track archive)
+_archive/
+
 # SageMath parsed files
 *.sage.py
 
 # Environments
 .env
+
+# Cloudflare local credentials and provisioning state — NEVER commit
+.cloudflare.env
+.dev.vars
+**/.dev.vars
+workers/.cf-resources.env
 .venv
 env/
 venv/

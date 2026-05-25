@@ -17,7 +17,7 @@ from app.utils.security import (
     is_safe_url, generate_csrf_token, verify_csrf_token
 )
 from app.utils.exceptions import (
-    SearchScrapeException, BadRequestException, UnauthorizedException
+    UnSearchException, BadRequestException, UnauthorizedException
 )
 
 
@@ -295,9 +295,9 @@ class TestSecurity:
 class TestExceptions:
     """Test custom exceptions."""
     
-    def test_searchscrape_exception(self):
+    def test_unsearch_exception(self):
         """Test base exception."""
-        exc = SearchScrapeException("Test error", {"detail": "test"})
+        exc = UnSearchException("Test error", {"detail": "test"})
         assert str(exc) == "Test error"
         assert exc.details["detail"] == "test"
     

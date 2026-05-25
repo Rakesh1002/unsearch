@@ -23,7 +23,7 @@ class APIKey(Base):
     last_used_at = Column(DateTime(timezone=True))
     is_active = Column(Boolean, default=True)
     rate_limit_override = Column(String(50))  # e.g., "5000/hour"
-    metadata = Column(JSON, default={})
+    api_key_metadata = Column("metadata", JSON, default={})
     
     # Relationships
     requests = relationship("SearchRequest", back_populates="api_key")
@@ -136,6 +136,50 @@ class ScrapingJob(Base):
     __table_args__ = (
         Index("idx_scraping_jobs_status", "status"),
         Index("idx_scraping_jobs_created", "created_at"),
+    )
+
+
+class ScrapeRequest(Base):
+    """Scrape request logging and analytics."""
+    __tablename__ = "scrape_requests"
+    
+    id = Column(Integer, primary_key=True)
+    request_id = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    api_key_id = Column(Integer, ForeignKey("api_keys.id"))
+    
+    # Request info
+    urls = Column(JSON, nullable=False)  # List of URLs scraped
+    url_count = Column(Integer, nullable=False)
+    
+    # Configuration
+    config = Column(JSON)  # Scraping configuration used
+    extraction_strategy = Column(String(50))  # none, cosine, json_css, regex, llm
+    
+    # Results
+    successful_scrapes = Column(Integer, default=0)
+    failed_scrapes = Column(Integer, default=0)
+    total_content_length = Column(Integer)  # Total bytes of content extracted
+    
+    # Performance metrics
+    processing_time_ms = Column(Integer)
+    
+    # Error tracking
+    error_message = Column(Text)  # Error message if request failed
+    
+    # Request metadata
+    client_ip = Column(String(45))  # IPv6 support
+    user_agent = Column(Text)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+    
+    # Relationships
+    api_key = relationship("APIKey", backref="scrape_requests")
+    
+    __table_args__ = (
+        Index("idx_scrape_requests_created", "created_at"),
+        Index("idx_scrape_requests_api_key", "api_key_id"),
     )
 
 

@@ -7,17 +7,20 @@ from fastapi.responses import RedirectResponse
 import structlog
 import stripe
 
-from app.models.requests import (
-    CreateCheckoutSessionRequest, CreateSubscriptionRequest,
-    UpdateSubscriptionRequest
-)
-from app.models.responses import (
-    SubscriptionResponse, PlanResponse, InvoiceResponse,
-    CheckoutSessionResponse, BillingPortalResponse
+from app.models.auth_models import (
+    CreateCheckoutSessionRequest,
+    CreateSubscriptionRequest,
+    UpdateSubscriptionRequest,
+    SubscriptionResponse,
+    PlanResponse,
+    InvoiceResponse,
+    CheckoutSessionResponse,
+    BillingPortalRequest,
+    BillingPortalResponse,
 )
 from app.services.auth_service import get_auth_service, AuthService
 from app.services.stripe_service import get_stripe_service, StripeService
-from app.services.database import get_database_service, DatabaseService
+from app.services.core.database import get_database_service, DatabaseService
 from app.models.users import User, Subscription, Plan, Invoice
 from app.api.v1.auth import get_current_user
 from app.config import get_settings
@@ -212,20 +215,67 @@ async def cancel_subscription(
 async def create_checkout_session(
     request: CreateCheckoutSessionRequest,
     user: User = Depends(get_current_user),
-    stripe_service: StripeService = Depends(get_stripe_service)
+    stripe_service: StripeService = Depends(get_stripe_service),
+    db_service: DatabaseService = Depends(get_database_service)
 ):
-    """Create a Stripe Checkout session for subscription."""
+    """Create a Stripe Checkout session for subscription.
+    
+    Accepts either:
+    - price_id directly
+    - OR plan_id + billing_period (will resolve to appropriate Stripe price_id)
+    """
+    price_id = request.price_id
+    
+    # If no price_id provided, resolve from plan_id + billing_period
+    if not price_id:
+        if not request.plan_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either price_id or plan_id must be provided"
+            )
+        
+        # Get plan from database
+        plan = await db_service.get_plan_by_name(request.plan_id)
+        if not plan:
+            # Try by ID if not found by name
+            try:
+                plan_id_int = int(request.plan_id)
+                plans = await db_service.get_active_plans()
+                plan = next((p for p in plans if p.id == plan_id_int), None)
+            except ValueError:
+                plan = None
+        
+        if not plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Plan not found: {request.plan_id}"
+            )
+        
+        # Determine price_id based on billing period
+        billing_period = request.billing_period or "monthly"
+        if billing_period == "yearly" and hasattr(plan, 'stripe_price_id_yearly') and plan.stripe_price_id_yearly:
+            price_id = plan.stripe_price_id_yearly
+        else:
+            price_id = plan.stripe_price_id
+        
+        if not price_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No Stripe price configured for plan: {plan.name}"
+            )
+    
     try:
         checkout_url = await stripe_service.create_checkout_session(
             user=user,
-            price_id=request.price_id,
+            price_id=price_id,
             success_url=request.success_url,
             cancel_url=request.cancel_url,
             trial_days=request.trial_days or 0
         )
         
         return CheckoutSessionResponse(
-            checkout_url=checkout_url
+            checkout_url=checkout_url,
+            url=checkout_url
         )
         
     except stripe.error.StripeError as e:
@@ -238,11 +288,12 @@ async def create_checkout_session(
 
 @router.post("/billing-portal", response_model=BillingPortalResponse)
 async def create_billing_portal_session(
-    return_url: str,
+    request: BillingPortalRequest,
     user: User = Depends(get_current_user),
     stripe_service: StripeService = Depends(get_stripe_service)
 ):
     """Create a Stripe Billing Portal session for subscription management."""
+    return_url = request.return_url or ""
     try:
         portal_url = await stripe_service.create_billing_portal_session(
             user=user,
@@ -250,7 +301,8 @@ async def create_billing_portal_session(
         )
         
         return BillingPortalResponse(
-            portal_url=portal_url
+            portal_url=portal_url,
+            url=portal_url
         )
         
     except Exception as e:

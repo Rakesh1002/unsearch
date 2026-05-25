@@ -6,31 +6,33 @@ import uuid
 from typing import List, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, status
+import httpx
 from fastapi.responses import JSONResponse, Response
 import structlog
 
-from app.models.requests import SearchScrapeRequest, BatchSearchRequest, ScrapingConfig
+from app.models.requests import UnSearchRequest, BatchSearchRequest, ScrapingConfig
 from app.models.responses import (
-    SearchScrapeResponse, AsyncTaskResponse, BatchSearchResponse,
+    UnSearchResponse, AsyncTaskResponse, BatchSearchResponse,
     SearchResult, SearchMetadata, EnginesListResponse, HealthResponse, ServiceHealth
 )
 from app.api.dependencies import (
-    ApiKeyDep, SettingsDep, DatabaseDep, SearxngDep, 
-    ScraperDep, CacheDep, ClientInfoDep
+    ApiKeyDep, AuthUserDep, SettingsDep, DatabaseDep, SearxngDep, 
+    ScraperDep, CacheDep, ClientInfoDep, check_search_limit, increment_sandbox_usage
 )
 from app.workers.tasks import process_async_search_scrape
+from app.services.auth_service import track_usage
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/search", tags=["search"])
 
 
-@router.post("/", response_model=SearchScrapeResponse)
+@router.post("/", response_model=UnSearchResponse)
 async def search_and_scrape(
-    request_data: SearchScrapeRequest,
+    request_data: UnSearchRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    api_key_id: ApiKeyDep,
+    auth_user: AuthUserDep,
     settings: SettingsDep,
     db: DatabaseDep,
     searxng: SearxngDep,
@@ -45,6 +47,9 @@ async def search_and_scrape(
     """
     start_time = asyncio.get_event_loop().time()
     request_id = str(uuid.uuid4())
+    
+    # Check usage limits before processing
+    check_search_limit(auth_user)
     
     try:
         # Generate cache key
@@ -110,32 +115,50 @@ async def search_and_scrape(
         safe_search_map = {"off": 0, "moderate": 1, "strict": 2}
         safe_search_value = safe_search_map.get(request_data.safe_search, 1)
         
-        search_results = await searxng.search(
-            query=request_data.query,
-            engines=request_data.engines,
-            language=request_data.language,
-            safe_search=safe_search_value,
-            pageno=1
-        )
+        # Use relevance-filtered search if enabled
+        query_analysis = None
+        if request_data.relevance_filter:
+            search_results, query_analysis = await searxng.search_with_relevance(
+                query=request_data.query,
+                engines=request_data.engines,
+                max_results=request_data.max_results,
+                language=request_data.language,
+                safe_search=safe_search_value,
+                enable_filtering=True,
+                min_relevance_score=request_data.min_relevance_score,
+                pageno=1
+            )
+        else:
+            # Legacy: no relevance filtering
+            search_results = await searxng.search(
+                query=request_data.query,
+                engines=request_data.engines,
+                language=request_data.language,
+                safe_search=safe_search_value,
+                pageno=1
+            )
+            search_results = search_results[:request_data.max_results]
         
         search_time_ms = int((asyncio.get_event_loop().time() - search_start) * 1000)
-        
-        # Limit results
-        search_results = search_results[:request_data.max_results]
         
         # Scrape content if requested
         if request_data.scrape_content and search_results:
             scraping_start = asyncio.get_event_loop().time()
             
-            # Extract URLs to scrape
-            urls_to_scrape = [result.url for result in search_results]
+            # Extract URLs to scrape (convert HttpUrl to string)
+            urls_to_scrape = [str(result.url) for result in search_results]
             
             # Create scraping config
             scraping_config = ScrapingConfig(
                 urls=urls_to_scrape,
                 selectors=request_data.scrape_selectors,
                 extract_images=request_data.include_images,
-                extract_links=request_data.include_links
+                extract_links=request_data.include_links,
+                javascript_rendering=request_data.js_mode,
+                js_mode=request_data.js_mode,
+                response_format=request_data.output_format,
+                screenshot=request_data.screenshot,
+                pdf=request_data.pdf,
             )
             
             # Scrape URLs
@@ -144,12 +167,17 @@ async def search_and_scrape(
                 scraping_config
             )
             
-            # Map scraped content to results
-            scraped_map = {sc.url: sc for sc in scraped_contents}
+            # Map scraped content to results (filter out None and unsuccessful scrapes)
+            # Normalize URLs by removing trailing slashes for matching
+            def normalize_url(url) -> str:
+                return str(url).rstrip('/')
+            
+            scraped_map = {normalize_url(sc.url): sc for sc in scraped_contents if sc and sc.extraction_success}
             
             for result in search_results:
-                if str(result.url) in scraped_map:
-                    result.scraped_content = scraped_map[str(result.url)]
+                normalized_result_url = normalize_url(result.url)
+                if normalized_result_url in scraped_map:
+                    result.scraped_content = scraped_map[normalized_result_url]
                     
             scraping_time_ms = int((asyncio.get_event_loop().time() - scraping_start) * 1000)
         else:
@@ -158,7 +186,7 @@ async def search_and_scrape(
         # Build response
         processing_time_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)
         
-        response = SearchScrapeResponse(
+        response = UnSearchResponse(
             search_metadata=SearchMetadata(
                 query=request_data.query,
                 engines_used=request_data.engines,
@@ -166,7 +194,9 @@ async def search_and_scrape(
                 engines_failed=[],
                 total_results_found=len(search_results),
                 results_returned=len(search_results),
-                search_time_ms=search_time_ms
+                search_time_ms=search_time_ms,
+                query_intent=query_analysis.intent.value if query_analysis else None,
+                relevance_filtered=request_data.relevance_filter
             ),
             results=search_results,
             processing_time_ms=processing_time_ms,
@@ -186,15 +216,47 @@ async def search_and_scrape(
             )
             
         # Log request
+        # Note: api_key_id is set to None because search_requests.api_key_id references
+        # the legacy api_keys table, not user_api_keys. User tracking is done via track_usage.
         background_tasks.add_task(
             db.log_search_request,
             request_data.dict(),
             response,
-            api_key_id,
+            None,  # api_key_id - legacy field, usage tracked separately
             client_info["client_ip"],
             client_info["user_agent"]
         )
         
+        # Track usage
+        if auth_user:
+            # For sandbox agents, increment daily counter
+            if auth_user.is_agent_placeholder:
+                background_tasks.add_task(
+                    increment_sandbox_usage,
+                    auth_user,
+                    db
+                )
+            else:
+                # Regular users - track monthly usage
+                scrape_count = len([r for r in search_results if r.scraped_content]) if request_data.scrape_content else 0
+                background_tasks.add_task(
+                    track_usage,
+                    user_id=auth_user.user_id,
+                    search_count=1,
+                    scrape_count=scrape_count,
+                    engine=request_data.engines[0] if request_data.engines else "searxng"
+                )
+        
+        # If markdown format requested, return text/markdown response with concatenated markdown from scraped contents
+        if request_data.output_format == "markdown" and request_data.scrape_content:
+            parts = []
+            for r in search_results:
+                if r.scraped_content and r.scraped_content.text:
+                    header = f"# {r.title}\n{r.url}\n\n" if r.title else f"{r.url}\n\n"
+                    parts.append(header + r.scraped_content.text)
+            markdown_body = "\n\n---\n\n".join(parts) if parts else ""
+            return Response(content=markdown_body, media_type="text/markdown")
+
         return response
         
     except Exception as e:
@@ -228,7 +290,7 @@ async def batch_search(
     request_data: BatchSearchRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    api_key_id: ApiKeyDep,
+    auth_user: AuthUserDep,
     settings: SettingsDep,
     db: DatabaseDep,
     searxng: SearxngDep,
@@ -243,6 +305,9 @@ async def batch_search(
     start_time = asyncio.get_event_loop().time()
     batch_id = str(uuid.uuid4())
     
+    # Check usage limits before processing
+    check_search_limit(auth_user)
+    
     try:
         results = {}
         errors = {}
@@ -254,15 +319,17 @@ async def batch_search(
             """Search a single query with rate limiting."""
             async with semaphore:
                 try:
-                    search_results = await searxng.search(
+                    # Use relevance-filtered search for better quality
+                    search_results, _ = await searxng.search_with_relevance(
                         query=query,
                         engines=request_data.engines,
+                        max_results=request_data.max_results_per_query,
                         language="en",
-                        safe_search=1
+                        safe_search=1,
+                        enable_filtering=True
                     )
                     
-                    # Limit results per query
-                    limited_results = search_results[:request_data.max_results_per_query]
+                    limited_results = search_results
                     
                     # Optional content scraping for batch
                     if request_data.scrape_content and limited_results:
@@ -275,7 +342,7 @@ async def batch_search(
                         )
                         
                         scraped_contents = await scraper.scrape_urls(urls, scraping_config)
-                        scraped_map = {sc.url: sc for sc in scraped_contents}
+                        scraped_map = {str(sc.url): sc for sc in scraped_contents if sc and sc.extraction_success}
                         
                         for result in limited_results:
                             if str(result.url) in scraped_map:
@@ -309,10 +376,30 @@ async def batch_search(
                 "request_id": batch_id
             },
             None,
-            api_key_id,
+            auth_user.api_key_id if auth_user else None,
             client_info["client_ip"],
             client_info["user_agent"]
         )
+        
+        # Track usage for batch (count each query)
+        if auth_user:
+            # For sandbox agents, increment daily counter for each query
+            if auth_user.is_agent_placeholder:
+                # Each query counts as one search for sandbox
+                for _ in range(len(results)):
+                    background_tasks.add_task(
+                        increment_sandbox_usage,
+                        auth_user,
+                        db
+                    )
+            else:
+                # Regular users - track monthly usage
+                background_tasks.add_task(
+                    track_usage,
+                    user_id=auth_user.user_id,
+                    search_count=len(results),
+                    engine=request_data.engines[0] if request_data.engines else "searxng"
+                )
         
         return BatchSearchResponse(
             batch_id=batch_id,
@@ -412,12 +499,50 @@ async def health_check(
             last_check=datetime.utcnow(),
             details={"error": str(e)}
         )
+
+    # Check Puppeteer (if enabled)
+    puppeteer_health = ServiceHealth(
+        status="degraded",
+        latency_ms=0,
+        last_check=datetime.utcnow(),
+        details={"enabled": False}
+    )
+    if getattr(settings, 'puppeteer_enabled', False) and settings.puppeteer_service_url:
+        pupp_start = asyncio.get_event_loop().time()
+        try:
+            base = str(settings.puppeteer_service_url).rstrip('/')
+            async with httpx.AsyncClient(timeout=httpx.Timeout(3.0)) as client:
+                # Try /health then fallback to /
+                tried = False
+                for path in ("/health", "/"):
+                    try:
+                        resp = await client.get(base + path)
+                        resp.raise_for_status()
+                        tried = True
+                        break
+                    except Exception:
+                        continue
+                status_ok = tried
+            puppeteer_health = ServiceHealth(
+                status="healthy" if status_ok else "unhealthy",
+                latency_ms=int((asyncio.get_event_loop().time() - pupp_start) * 1000),
+                last_check=datetime.utcnow(),
+                details={"url": base}
+            )
+        except Exception as e:
+            puppeteer_health = ServiceHealth(
+                status="unhealthy",
+                latency_ms=int((asyncio.get_event_loop().time() - pupp_start) * 1000),
+                last_check=datetime.utcnow(),
+                details={"error": str(e), "url": str(settings.puppeteer_service_url)}
+            )
         
     # Determine overall status
     services = {
         "searxng": searxng_health,
         "redis": cache_health,
-        "database": db_health
+        "database": db_health,
+        "puppeteer": puppeteer_health
     }
     
     unhealthy_count = sum(1 for s in services.values() if s.status == "unhealthy")

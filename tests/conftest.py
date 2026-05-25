@@ -4,17 +4,18 @@ Pytest configuration and fixtures.
 import asyncio
 import pytest
 from typing import AsyncGenerator, Generator
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from fakeredis import FakeAsyncRedis
 
 from app.main import app
 from app.config import Settings, get_settings
 from app.models.database import Base
-from app.services.database import DatabaseService
-from app.services.cache import CacheService
-from app.services.searxng import SearXNGService
-from app.services.scraping import ContentScrapingService
+from app.services.core.database import DatabaseService
+from app.services.core.cache import CacheService
+from app.services.core.searxng import SearXNGService
+from app.services.scraping.scraping import ContentScrapingService
+from app.services.rag.rag import RAGService, VectorStore, EmbeddingService, ResearchSource
 
 
 # Test settings
@@ -22,13 +23,14 @@ from app.services.scraping import ContentScrapingService
 def test_settings() -> Settings:
     """Override settings for testing."""
     return Settings(
-        environment="testing",
-        database_url="sqlite+aiosqlite:///:memory:",
+        environment="testing",  # Testing environment
+        database_url="postgresql://test:test@localhost:5432/test_db",  # Mock database
         redis_url="redis://localhost:6379/15",
         searxng_url="http://localhost:8888",
-        api_keys=["test-key-1", "test-key-2"],
+        api_keys="test-key-1,test-key-2",  # Use comma-separated string
         rate_limit_enabled=False,
-        cache_default_ttl=60
+        cache_default_ttl=60,
+        _env_file=None  # Don't load .env file
     )
 
 
@@ -86,7 +88,8 @@ async def test_cache() -> AsyncGenerator[CacheService, None]:
 @pytest.fixture
 async def client(override_settings) -> AsyncGenerator[AsyncClient, None]:
     """Create test HTTP client."""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
@@ -174,4 +177,120 @@ def sample_scraped_content():
             "author": "John Doe",
             "keywords": ["python", "web scraping", "tutorial"]
         }
+    }
+
+
+# RAG Service fixtures
+@pytest.fixture
+def mock_rag_service(mocker):
+    """Mock RAG service."""
+    mock = mocker.Mock(spec=RAGService)
+    mock.vector_store = VectorStore()
+    mock.embedding_service = mocker.Mock(spec=EmbeddingService)
+    mock.searxng = mocker.Mock(spec=SearXNGService)
+    mock.scraper = mocker.Mock(spec=ContentScrapingService)
+    mock._initialized = True
+    
+    # Default mock returns
+    mock.generate_research_queries.return_value = [
+        "test query 1",
+        "test query 2",
+        "test query 3"
+    ]
+    mock.deep_research.return_value = mocker.AsyncMock()
+    mock.search_and_answer.return_value = mocker.AsyncMock()
+    mock.semantic_search.return_value = mocker.AsyncMock()
+    
+    return mock
+
+
+@pytest.fixture
+def mock_embedding_service(mocker):
+    """Mock embedding service."""
+    mock = mocker.Mock(spec=EmbeddingService)
+    mock.generate_embeddings.return_value = [[0.1] * 1536]
+    mock.generate_single_embedding.return_value = [0.1] * 1536
+    return mock
+
+
+@pytest.fixture
+def test_vector_store():
+    """Create a test vector store with sample data."""
+    store = VectorStore()
+    
+    # Add sample vectors
+    vectors = [
+        ("doc_1", [1.0, 0.0, 0.0] + [0.0] * 1533, {
+            "url": "https://example.com/doc1",
+            "title": "Document 1",
+            "summary": "This is the first document about machine learning."
+        }),
+        ("doc_2", [0.0, 1.0, 0.0] + [0.0] * 1533, {
+            "url": "https://example.com/doc2",
+            "title": "Document 2",
+            "summary": "This is the second document about data science."
+        }),
+        ("doc_3", [0.0, 0.0, 1.0] + [0.0] * 1533, {
+            "url": "https://example.com/doc3",
+            "title": "Document 3",
+            "summary": "This is the third document about AI ethics."
+        }),
+    ]
+    
+    store.add_vectors("test_corpus", vectors)
+    return store
+
+
+@pytest.fixture
+def sample_research_source():
+    """Sample research source data."""
+    from datetime import datetime
+    return ResearchSource(
+        url="https://example.com/article",
+        title="Sample Article",
+        content="This is sample content for testing purposes. It contains information about various topics.",
+        summary="A sample article for testing",
+        relevance_score=0.85,
+        word_count=15,
+        metadata={
+            "engine": "google",
+            "rank": 1
+        },
+        scraped_at=datetime.utcnow()
+    )
+
+
+@pytest.fixture
+def sample_research_request():
+    """Sample research request data."""
+    return {
+        "topic": "machine learning fundamentals",
+        "depth": "standard",
+        "engines": ["google", "bing"],
+        "scrape_content": True,
+        "generate_embeddings": True,
+        "language": "en"
+    }
+
+
+@pytest.fixture
+def sample_quick_search_request():
+    """Sample quick search request data."""
+    return {
+        "query": "what is machine learning",
+        "max_sources": 5,
+        "scrape_content": True,
+        "engines": ["google", "bing"],
+        "include_context": True
+    }
+
+
+@pytest.fixture
+def sample_semantic_search_request():
+    """Sample semantic search request data."""
+    return {
+        "corpus_id": "test_corpus",
+        "query": "neural networks",
+        "limit": 10,
+        "min_relevance": 0.5
     }

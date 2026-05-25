@@ -1,9 +1,9 @@
 """
-Data models for the SearchScrape API.
+Data models for the UnSearch API.
 """
-from app.models.requests import SearchScrapeRequest, BatchSearchRequest, ScrapingConfig
+from app.models.requests import UnSearchRequest, BatchSearchRequest, ScrapingConfig
 from app.models.responses import (
-    SearchScrapeResponse, 
+    UnSearchResponse, 
     SearchResult, 
     ScrapedContent,
     SearchMetadata,
@@ -19,12 +19,12 @@ from app.models.responses import (
 
 __all__ = [
     # Request models
-    "SearchScrapeRequest",
+    "UnSearchRequest",
     "BatchSearchRequest", 
     "ScrapingConfig",
     
     # Response models
-    "SearchScrapeResponse",
+    "UnSearchResponse",
     "SearchResult",
     "ScrapedContent", 
     "SearchMetadata",

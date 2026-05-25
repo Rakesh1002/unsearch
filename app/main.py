@@ -17,12 +17,15 @@ import structlog
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.config import get_settings
-from app.api.v1 import search
+from app.api.v1 import search, auth, billing, rag, agent, enhanced_search
+from app.api.v1 import knowledge, monitor, verify, neural, agents
+from app.api.v2 import advanced_endpoints
 from app.models.responses import ErrorResponse
-from app.services.database import get_database_service
-from app.services.searxng import get_searxng_service
-from app.services.scraping import get_scraping_service
-from app.services.cache import get_cache_service
+from app.services.core.database import get_database_service
+from app.services.core.searxng import get_searxng_service
+from app.services.scraping.scraping import get_scraping_service
+from app.services.core.cache import get_cache_service
+from app.services.rag.rag import get_rag_service
 from app.utils.error_handlers import register_exception_handlers
 from app.utils.security import SecurityHeaders
 
@@ -80,17 +83,20 @@ async def lifespan(app: FastAPI):
     searxng_service = await get_searxng_service()
     scraping_service = await get_scraping_service()
     cache_service = await get_cache_service()
+    rag_service = await get_rag_service()
     
     # Store services in app state for cleanup
     app.state.db = db_service
     app.state.searxng = searxng_service
     app.state.scraper = scraping_service
     app.state.cache = cache_service
+    app.state.rag = rag_service
     
     # Store startup time for uptime calculation
     app.state.startup_time = time.time()
     
-    logger.info("services_initialized")
+    logger.info("services_initialized", 
+                services=["database", "searxng", "scraping", "cache", "rag"])
     
     yield
     
@@ -98,6 +104,7 @@ async def lifespan(app: FastAPI):
     logger.info("application_shutdown")
     
     # Cleanup services
+    await app.state.rag.close()
     await app.state.searxng.close()
     await app.state.scraper.close()
     await app.state.cache.close()
@@ -113,11 +120,11 @@ app = FastAPI(
     docs_url=settings.docs_url,
     openapi_url=settings.openapi_url,
     lifespan=lifespan,
-    description="Privacy-respecting web search and scraping API powered by SearXNG and BeautifulSoup4",
+    description="Open-source AI search API for agents. Tavily-compatible endpoints with self-hosting, zero-retention mode, and 70+ search engines. Drop-in replacement for Tavily at 50% lower cost.",
     contact={
-        "name": "SearchScrape API",
-        "url": "https://github.com/searchscrape/api",
-        "email": "support@searchscrape.io"
+        "name": "UnSearch API",
+        "url": "https://github.com/UnSearch/api",
+        "email": "support@UnSearch.io"
     },
     license_info={
         "name": "AGPL-3.0",
@@ -142,7 +149,7 @@ register_exception_handlers(app)
 # Add middlewares
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=settings.cors_credentials,
     allow_methods=settings.cors_methods,
     allow_headers=settings.cors_headers,
@@ -154,7 +161,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 if settings.environment == "production":
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*.searchscrape.io", "localhost"]
+        allowed_hosts=["api.unsearch.dev", "unsearch.dev", "*.unsearch.dev", "localhost"]
     )
 
 
@@ -249,13 +256,75 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=error_response.dict()
+        content=error_response.model_dump(mode="json")
     )
 
 
 # Include routers
 app.include_router(
     search.router,
+    prefix=settings.api_prefix
+)
+
+app.include_router(
+    agent.router,
+    prefix=settings.api_prefix
+)
+
+app.include_router(
+    rag.router,
+    prefix=settings.api_prefix
+)
+
+app.include_router(
+    auth.router,
+    prefix=settings.api_prefix
+)
+
+app.include_router(
+    billing.router,
+    prefix=settings.api_prefix
+)
+
+# Enhanced search endpoints (v1)
+app.include_router(
+    enhanced_search.router,
+    prefix=settings.api_prefix
+)
+
+# Neural/Semantic Search (Exa-compatible)
+app.include_router(
+    neural.router,
+    prefix=settings.api_prefix
+)
+
+# Knowledge Graph (Glean-compatible)
+app.include_router(
+    knowledge.router,
+    prefix=settings.api_prefix
+)
+
+# Topic Monitoring (Groundbreaking)
+app.include_router(
+    monitor.router,
+    prefix=settings.api_prefix
+)
+
+# Fact Verification (Groundbreaking)
+app.include_router(
+    verify.router,
+    prefix=settings.api_prefix
+)
+
+# Agent Self-Registration
+app.include_router(
+    agents.router,
+    prefix=settings.api_prefix
+)
+
+# Advanced endpoints (v2)
+app.include_router(
+    advanced_endpoints.router,
     prefix=settings.api_prefix
 )
 

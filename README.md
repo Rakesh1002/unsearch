@@ -1,349 +1,269 @@
-# UnQuest - Privacy-Respecting Search & Scraping Platform
+# UnSearch
 
-A full-stack privacy-focused search and content scraping platform built with FastAPI, Next.js, and powered by SearXNG.
+> **The open-source search API for AI agents. Tavily-compatible. 10× cheaper.**
 
-## 🏗️ Architecture
+Apache 2.0. Self-hostable on Cloudflare Workers + Containers. Drop-in replacement for Tavily — change one base URL, keep your existing `client.search()` calls. $49/mo on the Growth tier vs. a ~$500/mo median across closed-source competitors.
 
-This is a **Turborepo monorepo** containing:
+## For whom
 
-- **Backend API** (`apps/backend/`) - FastAPI application with SearXNG integration
-- **Frontend Web App** (`apps/web/`) - Next.js dashboard for API management
-- **Shared Package** (`packages/shared/`) - TypeScript types and utilities
+UnSearch is built for:
 
-## 🚀 Quick Start
+- **AI app builders shipping production agents** who hit Tavily's $30/$100 pricing cliff or are nervous about the [Nebius acquisition](https://techcrunch.com/2025/08/06/tavily-raises-25m-to-connect-ai-agents-to-the-web/)
+- **AI-native startups** whose search bill became 30–60% of COGS on Exa or other closed vendors
+- **Cloudflare-stack teams** who want retrieval that runs on the same edge as the rest of their app
+- **Teams that need Apache 2.0** for legal/compliance review or to defuse vendor-lock-in objections
 
-### Prerequisites
+UnSearch is **not** for:
 
-- **Node.js 18+** and **npm**
-- **Python 3.11+** and **pip**
-- **PostgreSQL 12+**
-- **Redis 6.0+**
-- **Docker & Docker Compose** (optional)
+- Anyone who wants a consumer search UI (we're an API, not a browser)
+- Anyone needing internal-document search across Slack/Drive/Confluence (that's [Glean's](https://www.glean.com) job)
+- Anyone needing aggressive scraping of login-walled or anti-bot sites (we respect `robots.txt` and ToS)
+- Procurement-led enterprises that require a 6-month security review before evaluating (we'll get there — see [strategy/mrr-plan.md](./docs/strategy/mrr-plan.md))
 
-### 1. Clone and Install
+## Why UnSearch
+
+| Feature | Tavily | Exa | Brave | UnSearch |
+|---------|--------|-----|-------|----------|
+| Open source license | — | — | — | **Apache 2.0** |
+| Self-hostable | — | — | — | **Docker one-liner + CF Containers** |
+| Drop-in Tavily API | N/A | — | — | **Yes** |
+| Free tier | 1,000/mo | 1,000/mo | None (since Feb 2026) | **5,000/mo** |
+| Price for 100K searches/mo | ~$700 | ~$700 | ~$500 | **$49 (Growth)** |
+| Public 12-month price-notice commitment | — | — | — | **Yes** |
+| Cloudflare-native (Workers / D1 / Vectorize) | — | — | — | **Yes** |
+| Zero-retention mode | — | — | — | **Yes (Pro+)** |
+
+For the full feature comparison, see [docs/feature-matrix.md](./docs/feature-matrix.md). For the strategy + GTM story, see [docs/strategy/](./docs/strategy/README.md).
+
+## Quick Start
 
 ```bash
-git clone <repository-url>
-cd unquest
-npm install
+# Clone and start
+git clone https://github.com/Rakesh1002/unsearch.git
+cd unsearch
+cp .env.example .env
+# Edit .env with your credentials (see .env.example for details)
+docker compose up -d
 ```
 
-### 2. Environment Setup
+API available at `http://localhost:8000/docs`
 
-**Backend Environment** (apps/backend/.env):
+### Minimal Setup (Quickstart)
 
 ```bash
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/unquest
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# API Keys
-SECRET_KEY=your-super-secret-key
-JWT_SECRET_KEY=your-jwt-secret
-
-# Stripe (for billing)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# SearXNG
-SEARXNG_URL=http://localhost:8080
+docker compose -f docker-compose.quickstart.yml up -d
 ```
 
-**Frontend Environment** (apps/web/.env.local):
+## Features
 
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+### Tavily-Compatible API (Drop-in Replacement)
+
+```python
+# Before (Tavily)
+from tavily import TavilyClient
+client = TavilyClient(api_key="tvly-...")
+
+# After (UnSearch) - just change the import
+from unsearch import UnSearchClient
+client = UnSearchClient(api_key="uns-...")
+response = client.search("query")
 ```
 
-### 3. Start Services
-
-**Option A: Docker (Recommended)**
+### Search API
 
 ```bash
-# Start infrastructure services
-cd apps/backend
-docker-compose up -d postgres redis searxng
-
-# Run database migrations
-alembic upgrade head
+curl -X POST http://localhost:8000/api/v1/search \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "AI news", "max_results": 10}'
 ```
 
-**Option B: Local Services**
+### Neural Search (Exa-Compatible)
 
 ```bash
-# Install and configure PostgreSQL, Redis, and SearXNG locally
-```
-
-### 4. Development
-
-```bash
-# Start all services in development mode
-npm run dev
-
-# Or start individually:
-npm run dev --workspace=apps/backend  # Backend on :8000
-npm run dev --workspace=apps/web      # Frontend on :3000
-```
-
-## 🎯 Features
-
-### Backend API (`apps/backend/`)
-
-- **Multi-Engine Search** via SearXNG integration
-- **Intelligent Web Scraping** with BeautifulSoup4
-- **User Authentication** with JWT tokens
-- **API Key Management** with per-user keys
-- **Subscription & Billing** via Stripe integration
-- **Usage Tracking** with rate limiting
-- **Async Processing** with Celery workers
-- **Comprehensive Monitoring** with metrics & health checks
-
-### Frontend Dashboard (`apps/web/`)
-
-- **Modern React/Next.js** interface
-- **User Authentication** with secure session management
-- **API Key Management** - create, view, and manage API keys
-- **Usage Dashboard** - real-time usage statistics
-- **Billing Portal** - subscription management via Stripe
-- **API Documentation** - integrated docs viewer
-- **Responsive Design** - works on all devices
-
-## 📚 API Usage
-
-### Authentication
-
-```bash
-# Register new user
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
+curl -X POST http://localhost:8000/api/v1/neural/search \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123",
-    "full_name": "John Doe"
-  }'
-
-# Login
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePass123"
+    "query": "renewable energy innovations",
+    "use_autoprompt": true,
+    "num_results": 10
   }'
 ```
 
-### Search & Scraping
+### Knowledge Graph
 
 ```bash
-# Search with scraping
-curl -X POST "http://localhost:8000/api/v1/search" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "artificial intelligence trends 2024",
-    "engines": ["google", "bing", "duckduckgo"],
-    "scrape_results": true,
-    "max_results": 10
-  }'
+curl -X POST http://localhost:8000/api/v1/knowledge/extract \
+  -d '{"text": "Elon Musk founded SpaceX in 2002..."}'
+```
 
-# Batch search
-curl -X POST "http://localhost:8000/api/v1/search/batch" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
+### Topic Monitoring
+
+```bash
+curl -X POST http://localhost:8000/api/v1/monitor/topics \
   -d '{
-    "queries": [
-      {"query": "machine learning", "max_results": 5},
-      {"query": "web scraping tools", "max_results": 5}
-    ]
+    "topic": "AI regulation",
+    "keywords": ["EU AI Act", "FTC"],
+    "check_interval_minutes": 60,
+    "webhook_url": "https://your-webhook.com/alerts"
   }'
 ```
 
-## 🚀 Deployment
-
-### Production Architecture
-
-```
-┌─────────────────────┐    ┌─────────────────────┐
-│   Vercel (Frontend) │    │  Railway (Backend)  │
-│   ├─ Next.js Web    │◄──►│  ├─ FastAPI API     │
-│   ├─ User Dashboard │    │  ├─ PostgreSQL DB   │
-│   └─ Static Assets  │    │  ├─ Redis Cache     │
-└─────────────────────┘    │  └─ SearXNG Engine  │
-                           └─────────────────────┘
-```
-
-### Backend Deployment (Railway)
-
-1. **Create Railway Project**
+### Fact Verification
 
 ```bash
-npm install -g @railway/cli
-railway login
-railway init
+curl -X POST http://localhost:8000/api/v1/verify/claim \
+  -d '{"claim": "OpenAI was founded in 2015", "depth": "thorough"}'
 ```
 
-2. **Configure Environment Variables** in Railway dashboard:
+### Deep Research Agent
 
 ```bash
-DATABASE_URL=<railway-postgres-url>
-REDIS_URL=<railway-redis-url>
-SECRET_KEY=<production-secret>
-STRIPE_SECRET_KEY=<live-stripe-key>
+curl -X POST http://localhost:8000/api/v1/agent/research \
+  -d '{
+    "topic": "Impact of AI on healthcare",
+    "depth": "comprehensive",
+    "focus_areas": ["diagnostics", "drug discovery"]
+  }'
 ```
 
-3. **Deploy**
+## AI Pipeline (Cloudflare Workers AI)
+
+UnSearch uses Cloudflare Workers AI for answer generation, embeddings, and reasoning.
+
+| Tier | Model | Use Case |
+|------|-------|----------|
+| Speed | llama-3.1-8b-instruct-fast | Simple queries |
+| Quality | llama-3.3-70b-instruct-fp8-fast | General answers |
+| Reasoning | qwq-32b | Complex analysis |
+| Production | gpt-oss-120b | Enterprise quality |
+
+## API Endpoints
+
+### Tavily-Compatible
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/agent/search` | AI-powered search |
+| `POST /api/v1/agent/extract` | Content extraction |
+| `POST /api/v1/agent/research` | Deep research |
+| `GET /api/v1/agent/models` | Available AI models |
+| `GET /api/v1/agent/health` | Health check |
+
+### Exa-Compatible (Neural Search)
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/neural/search` | Semantic search |
+| `POST /api/v1/neural/similar` | Find similar content |
+| `POST /api/v1/neural/highlights` | Extract key passages |
+
+### Knowledge & Monitoring
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/knowledge/extract` | Entity extraction |
+| `POST /api/v1/knowledge/search` | Knowledge search |
+| `POST /api/v1/monitor/topics` | Topic monitoring |
+| `POST /api/v1/verify/claim` | Fact verification |
+| `POST /api/v1/verify/source` | Source credibility |
+
+## Configuration
+
+See [.env.example](.env.example) for all configuration options.
+
+### Required
 
 ```bash
-cd apps/backend
-railway deploy
+# Cloudflare Workers AI (for AI features)
+CLOUDFLARE_ACCOUNT_ID="your_account_id"
+CLOUDFLARE_API_TOKEN="your_api_token"
 ```
 
-### Frontend Deployment (Vercel)
-
-1. **Install Vercel CLI**
+### Optional
 
 ```bash
-npm install -g vercel
-vercel login
+SEARXNG_URL="http://searxng:8080"
+REDIS_URL="redis://localhost:6379"
+DATABASE_URL="postgresql://unsearch:unsearch@localhost:5432/unsearch"
 ```
 
-2. **Configure Project**
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System architecture |
+| [AI Pipeline](docs/ai-pipeline.md) | AI features & models |
+| [API Reference](docs/API_REFERENCE.md) | Full API documentation |
+| [API Examples](docs/API_EXAMPLES.md) | Usage examples |
+| [Feature Matrix](docs/feature-matrix.md) | Feature comparison |
+| [Quickstart](docs/quickstart.md) | Getting started guide |
+| [Migrate from Tavily](docs/migration/from-tavily.md) | Migration guide |
+
+## Self-Hosting
+
+### Docker Compose (Recommended)
 
 ```bash
-cd apps/web
-vercel
+docker compose up -d
 ```
 
-3. **Set Environment Variables** in Vercel dashboard:
+This starts the API, SearXNG, Redis, PostgreSQL, and Celery workers.
+
+### Production
 
 ```bash
-NEXT_PUBLIC_API_URL=https://your-app.railway.app
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-### CI/CD Pipeline
+See [docs/deployment/](docs/deployment/) for deployment guides.
 
-The repository includes GitHub Actions for automated deployment:
-
-**Required Secrets:**
-
-- `RAILWAY_TOKEN` - Railway deployment token
-- `VERCEL_TOKEN` - Vercel deployment token
-- `VERCEL_ORG_ID` - Vercel organization ID
-- `VERCEL_PROJECT_ID` - Vercel project ID
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-unquest/
-├── apps/
-│   ├── backend/          # FastAPI application
-│   │   ├── app/          # Application code
-│   │   ├── alembic/      # Database migrations
-│   │   ├── tests/        # Test suites
-│   │   └── scripts/      # Utility scripts
-│   └── web/              # Next.js application
-│       ├── src/
-│       │   ├── app/      # App Router pages
-│       │   ├── components/ # UI components
-│       │   └── lib/      # Utilities and hooks
-│       └── public/       # Static assets
-├── packages/
-│   └── shared/           # Shared TypeScript types
-├── .github/
-│   └── workflows/        # CI/CD pipelines
-└── docs/                 # Documentation
-```
-
-### Available Scripts
-
-**Root Level:**
+## Development
 
 ```bash
-npm run dev          # Start all services
-npm run build        # Build all applications
-npm run test         # Run all tests
-npm run lint         # Lint all code
-npm run format       # Format code
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally
+uvicorn app.main:app --reload --port 8000
+
+# Run tests
+pytest tests/unit/ -v --cov=app
+pytest tests/integration/ -v
 ```
 
-**Backend:**
+## Roadmap
 
-```bash
-npm run dev --workspace=apps/backend    # Start FastAPI server
-npm run test --workspace=apps/backend   # Run Python tests
-npm run migrate --workspace=apps/backend # Run DB migrations
-```
+### Completed
+- [x] Tavily API compatibility
+- [x] Exa neural search features
+- [x] Knowledge graph features
+- [x] Topic monitoring
+- [x] Fact verification
+- [x] Cloudflare Workers AI integration
+- [x] 15+ AI model support
 
-**Frontend:**
+### In Progress
+- [ ] Full test coverage
+- [ ] Production deployment guides
+- [ ] JavaScript SDK
+- [ ] Python SDK
 
-```bash
-npm run dev --workspace=apps/web       # Start Next.js dev server
-npm run build --workspace=apps/web     # Build for production
-npm run type-check --workspace=apps/web # TypeScript checking
-```
+### Planned
+- [ ] Enterprise SSO
+- [ ] Multi-region deployment
 
-## 📋 Subscription Plans
+## Contributing
 
-| Feature          | Free         | Pro ($20/mo) |
-| ---------------- | ------------ | ------------ |
-| Searches         | 1,000/month  | Unlimited    |
-| Scrapes          | 10,000/month | Unlimited    |
-| API Keys         | 3            | Unlimited    |
-| Rate Limit       | 60/min       | 1000/min     |
-| Webhook Support  | ❌           | ✅           |
-| Priority Support | ❌           | ✅           |
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 🔒 Security
+## License
 
-- **JWT Authentication** with refresh tokens
-- **API Key Management** with scoped permissions
-- **Rate Limiting** based on subscription tiers
-- **Input Validation** with Pydantic models
-- **SQL Injection Protection** via SQLAlchemy ORM
-- **CORS Configuration** for cross-origin requests
+Apache 2.0 — See [LICENSE](LICENSE) for details.
 
-## 📈 Monitoring
+## Support
 
-- **Health Checks** at `/health` and `/metrics`
-- **Prometheus Metrics** integration
-- **Grafana Dashboards** for visualization
-- **Structured Logging** with request tracking
-- **Error Handling** with detailed error responses
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`npm run test`)
-5. Commit changes (`git commit -m 'Add amazing feature'`)
-6. Push to branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Development Guidelines
-
-- Follow **TypeScript** best practices for frontend
-- Use **Python type hints** for backend code
-- Write **comprehensive tests** for new features
-- Update **documentation** for API changes
-- Follow **semantic commit** conventions
-
-## 📄 License
-
-This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: [docs.unquest.ai](https://docs.unquest.ai)
-- **API Status**: [status.unquest.ai](https://status.unquest.ai)
-- **GitHub Issues**: For bug reports and feature requests
-- **Email**: support@unquest.ai
-
----
-
-**Built with ❤️ for developers who value privacy**
+- **Documentation:** [docs/](docs/)
+- **Issues:** [GitHub Issues](https://github.com/Rakesh1002/unsearch/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/Rakesh1002/unsearch/discussions)
