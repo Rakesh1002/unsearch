@@ -1,222 +1,182 @@
 # UnSearch Product Roadmap
 
-> **How to read this doc:** This is the engineering roadmap. For the *commercial* story (ICP, pricing, GTM), see [strategy docs](./strategy/README.md). For the truthful per-feature status, see [feature matrix](./feature-matrix.md). The source of truth for what shipped in the last release is [CHANGELOG.md](../CHANGELOG.md) — anything in its `[Unreleased] — Deferred to follow-up` section is not yet live.
+> **How to read this doc:** Engineering roadmap. For the *commercial* story (ICP, pricing, GTM), see [strategy docs](./strategy/README.md). For per-feature truthful status, see [feature matrix](./feature-matrix.md). For what shipped in each release, see [CHANGELOG.md](../CHANGELOG.md) — anything in its `[Unreleased]` section is in flight but not live.
 
-Roadmap is **ordered around ICP needs** (see [ICP](./strategy/icp.md)). Phase 1 (Persona A — indie devs) is the priority. Phase 2 (Persona B — Seed/A CTOs) follows. Phase 3 (Persona C — Series B+ buyers) lands once Personas A and B are converting.
+> **Reposition (2026-05-28).** UnSearch is "verifiable web retrieval for AI agents." The roadmap below is ordered around regulated-AI ICPs (legal-AI / medical-RAG / fintech research / govtech), not the prior indie-dev framing. ICP-1 (Priya — regulated-AI startup eng lead) is Phase 1; ICP-2 (David — regulated-company AI platform director) is Phase 2; ICP-3 (Anika — citation-integrity research / newsroom) is a continuous Free-tier ambassador track. See [strategy/icp.md](./strategy/icp.md).
 
-## Current State Summary
+## Current state summary
 
-**Version:** 2.0.0 (Cloudflare-native rewrite in flight — see [CHANGELOG `[Unreleased]`](../CHANGELOG.md))
-**API Endpoints:** 75+
-**AI Integration:** Cloudflare Workers AI
-**Edge Infrastructure:** Cloudflare Workers, Vectorize, Queues, Durable Objects, D1, KV, R2
+**Version:** 2.0.0 — Cloudflare-native rebuild deploying through the 3-week plan ending Week 3 (see `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`).
+**Status:** Backend production-ready in code (93 endpoints, real implementations), frontend built but never deployed, MCP server + verification wedge still to ship.
 
 ### Status legend
 - ✅ Shipped (production, end-to-end tested)
+- ✏️ Shipping in the 3-week rebuild (Week 1–3 work, per approved plan)
 - 🔶 In beta (code paths exist, hardening in flight)
-- 📋 Planned (on this roadmap)
+- 📋 Planned (on this roadmap, not shipped)
 
-### Core capabilities — honest status
+---
+
+## Core capabilities — honest status
 
 | Category | Features | Status |
 |----------|----------|--------|
-| **AI Search** | gpt-oss-120b, qwq-32b, llama-3.3-70b, model selection | ✅ |
-| **Web Search** | SearXNG meta-search, multi-provider fallback | ✅ |
-| **Neural Search** | Semantic search, auto-prompting, highlights (Exa-compatible neural endpoints) | ✅ |
-| **Knowledge Graph** | Entity extraction, people search, relationship mapping | 🔶 (no Drive/Slack/Confluence/Notion/GitHub connectors yet) |
-| **Topic Monitoring** | Durable Object + scheduled checks + webhook fan-out | 🔶 (webhook retry logic + at-scale testing remaining) |
-| **Fact Verification** | Claim check, source credibility | 🔶 (pipeline functional, accuracy benchmarking ongoing) |
+| **Verifiable retrieval (the wedge)** | Signed citation envelope per result, R2 snapshot store, `verify/citation`, `verify/claim`, audit log | ✏️ Shipping Week 2 |
+| **MCP server** | Hono-hosted Streamable HTTP at `/mcp`; tools: `search`, `extract`, `research`, `verify_claim`; `npx @unsearch/mcp-server` | ✏️ Shipping Week 3 |
+| **Web search** | SearXNG meta-search (70+ engines), multi-provider fallback | ✅ |
+| **Neural / semantic search** | Exa-compatible neural endpoints (auto-prompt, highlights, similar) | ✅ |
+| **Knowledge graph** | Entity extraction, people search, relationship mapping | 🔶 (no Drive/Slack/Confluence/Notion/GitHub connectors — not in scope) |
+| **Topic monitoring** | Durable Object + scheduled checks + webhook fan-out | 🔶 (webhook retry + at-scale testing remaining) |
+| **Source credibility** | `/api/v1/verify/source` heuristic | 🔶 |
 | **Scraping** | Static, JavaScript, PDF, multi-engine | ✅ |
 | **Extraction** | Tables, entities, attributes | ✅ |
 | **Crawling** | Deep crawl, mapping, change tracking | ✅ |
 | **RAG** | Embeddings (bge-m3), Vectorize, research mode | ✅ |
+| **Workers AI tiered models** | gpt-oss-120b / qwq-32b / llama-3.3-70b / llama-3.1-8b | ✅ |
 | **Auth** | JWT, API keys | ✅ |
-| **OAuth (Google + GitHub)** | Env keys in `.env.example`, no flow wired | 📋 (Week 1 ship — see strategy [user-journey](./strategy/user-journey.md)) |
+| **OAuth (Google + GitHub)** | Env keys in `.env.example`, flow not wired | 📋 (Week 4) |
 | **Privacy** | Zero-retention mode, content safety | ✅ |
-| **Edge Infrastructure** | Workers, Queues, Durable Objects, D1, KV, R2, Vectorize | ✅ |
-| **Stripe billing** | Checkout + portal + subscription management | ✅ |
-| **Stripe metered overage** | Schema fields present (`usage_records.search_overage`) | 📋 |
-| **Dashboard `/team` and `/settings`** | Placeholder routes | 📋 (Month 2 ship) |
-| **Deep Research Agent** | Durable Object skeleton + Workers AI | 🔶 (multi-step depth + citation polish remaining) |
+| **Cloudflare edge — Workers / Vectorize / Queues / DOs / KV / R2 / D1** | All wired | ✅ |
+| **Cloudflare Containers deploy** | FastAPI + SearXNG sidecar on CF Containers GA | ✏️ Shipping Week 1 |
+| **Frontend on Cloudflare Workers** | Next.js 15 + @opennextjs/cloudflare, built but not deployed | ✏️ Shipping Week 1 |
+| **Stripe billing** | Checkout + portal + subscription | ✅ |
+| **Stripe metered overage** | Schema fields (`usage_records.search_overage`) present, Stripe metered prices not wired | 📋 (Month 3) |
+| **Dashboard `/verify` + `/audit`** | New surfaces for the wedge | ✏️ Shipping Week 2 |
+| **Dashboard `/team` + `/settings`** | Placeholder routes | 📋 (Month 2) |
+| **Deep research agent** | Durable Object + Workers AI | 🔶 (multi-step depth + citation polish remaining) |
 
 ---
 
-## Competitive parity — honest status
+## 3-week rebuild plan — P0 (Weeks 1–3)
 
-We previously claimed "Glean parity ✅". That's not true — Glean searches inside-company corpora via connectors we haven't built. The corrected scope:
+Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`. Each item names the ICP it unblocks.
 
-### Tavily compatibility — ✅ Shipped
-The single most important parity claim. Drop-in replacement, same `client.search()` calls, one base-URL change. See [migration guide](./migration/from-tavily.md).
+### Week 1 — Deploy what exists + reposition
 
-### Exa neural-endpoint compatibility — ✅ Shipped
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| Neural/Semantic Search | ✅ | `POST /api/v1/neural/search` |
-| Auto-Prompting | ✅ | `POST /api/v1/neural/search?use_autoprompt=true` |
-| Highlights Extraction | ✅ | `POST /api/v1/neural/highlights` |
-| Similar Content | ✅ | `POST /api/v1/neural/similar` |
-| Category Filtering | ✅ | `GET /api/v1/neural/categories` |
+1. Rewrite [README](../README.md), [strategy docs](./strategy/README.md), [feature-matrix](./feature-matrix.md), and apps/web/app/page.tsx around verifiable retrieval. **(Day 1–2)** ✅ (this PR)
+2. Build `Dockerfile.cloudflare` image with FastAPI + SearXNG sidecar (supervisord-managed). **(Day 3)**
+3. `wrangler containers deploy` on Cloudflare Containers GA (active-CPU billing). **(Day 3–4)**
+4. Resolve all `localhost` refs in `app/config.py:31,37,47,79,140` to container-internal DNS. **(Day 4)**
+5. Uncomment container binding `workers/wrangler.toml:84-90`; `wrangler deploy` Hono edge to `api.unsearch.dev`. **(Day 5)**
+6. `cd apps/web && pnpm install && pnpm cf:build && pnpm cf:deploy` to `app.unsearch.dev`. **(Day 6)**
+7. DNS: `unsearch.dev` → landing, `app.unsearch.dev` → dashboard, `api.unsearch.dev` → API/MCP. **(Day 7)**
 
-### Knowledge / Verification / Monitoring — 🔶 In beta (NOT Glean parity)
-| Feature | Status | Endpoint |
-|---------|--------|----------|
-| Entity Extraction | 🔶 | `POST /api/v1/knowledge/extract` |
-| Knowledge Search | 🔶 | `POST /api/v1/knowledge/search` |
-| People Search | 🔶 | `POST /api/v1/knowledge/people` |
-| Knowledge Graph (public web) | 🔶 | `GET /api/v1/knowledge/graph` |
-| Topic Monitoring | 🔶 | `POST /api/v1/monitor/topics` |
-| Real-time Alerts (webhook) | 🔶 | Webhooks |
-| Fact Verification | 🔶 | `POST /api/v1/verify/claim` |
-| Source Credibility | 🔶 | `POST /api/v1/verify/source` |
-| Batch Verification | 🔶 | `POST /api/v1/verify/batch` |
-| Predictive Search | 🔶 | `POST /api/v1/neural/predictive` |
-| Deep Research Agent | 🔶 | `POST /api/v1/agent/research` |
-| Document Connectors (Drive/Slack/Confluence/Notion/GitHub) | 📋 Planned (Enterprise tier) | — |
+### Week 2 — Verification wedge
 
----
+8. Build `app/services/citation_store.py` — R2 content-addressable snapshot store (sha256-keyed). **(Day 8–9)**
+9. Update `app/api/v1/search.py:30` + `app/api/v1/agent.py:45` to compute hash + write snapshot for every result. **(Day 9–10)**
+10. WACZ-aligned signed citation envelope (HMAC v1, key from `wrangler secret`); D1 schema for `citations` table. **(Day 10)**
+11. `POST /api/v1/verify/citation` — return pinned snapshot + live diff. **(Day 11)**
+12. `POST /api/v1/verify/claim` — re-fetch + Workers AI grader (llama-3.3-70b balanced) → `{supported, evidence_spans, confidence}`. **(Day 11–12)**
+13. Promote `app/api/v1/verify.py` from 🔶 beta to ✅ GA in feature matrix. **(Day 12)**
+14. New dashboard page `apps/web/app/(dashboard)/verify/page.tsx`. **(Day 13)**
+15. New dashboard page `apps/web/app/(dashboard)/audit/page.tsx`; D1 `verifications` table. **(Day 14)**
 
-## Cloudflare Edge Architecture
+### Week 3 — MCP-first distribution + launch
 
-### Infrastructure Components ✅
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| **Workers** | Edge routing, API handling | ✅ Implemented |
-| **Workers AI** | LLM, embeddings, reranking | ✅ Integrated |
-| **Vectorize** | Vector database | ✅ Configured |
-| **Queues** | Async task processing | ✅ Configured |
-| **Durable Objects** | Stateful sessions | ✅ Implemented |
-| **KV** | Edge caching | ✅ Configured |
-| **R2** | Object storage | ✅ Configured |
-| **D1** | Edge database | ✅ Schema ready |
-
-### Edge Worker Structure
-```
-workers/
-├── src/
-│   ├── index.ts           # Main router
-│   ├── types.ts           # Type definitions
-│   ├── routes/
-│   │   ├── search.ts      # Neural search routes
-│   │   ├── research.ts    # Research agent routes
-│   │   ├── monitor.ts     # Topic monitor routes
-│   │   ├── connectors.ts  # Document connector routes
-│   │   └── verify.ts      # Fact verification routes
-│   ├── durable-objects/
-│   │   ├── research-agent.ts    # Autonomous research
-│   │   ├── topic-monitor.ts     # Real-time monitoring
-│   │   └── session-manager.ts   # User sessions
-│   └── utils/
-│       ├── auth.ts        # Authentication
-│       └── cors.ts        # CORS handling
-├── wrangler.toml          # Cloudflare config
-├── schema.sql             # D1 database schema
-└── package.json           # Dependencies
-```
+16. Build `workers/src/mcp/server.ts` — Hono MCP route at `/mcp` (Streamable HTTP transport). **(Day 15)**
+17. Expose 4 tools: `search`, `extract`, `research`, `verify_claim`. **(Day 15–16)**
+18. MCP auth: `X-API-Key` header → D1 lookup → plan-aware rate limit. **(Day 16)**
+19. Build `apps/mcp-server/` npx package; `claude mcp add unsearch` works. **(Day 17)**
+20. Submit to MCP registry, `awesome-mcp-servers`, `awesome-llm-tools`. **(Day 17)**
+21. New landing copy: 60-second `verify_claim` interactive demo. **(Day 18)**
+22. New page `docs/eu-ai-act-article-12.md` — compliance how-to. **(Day 18)**
+23. Update `docs/quickstart.md` — three paths: MCP (lead), SDK, REST. **(Day 19)**
+24. HN launch — "Show HN: UnSearch — verifiable web retrieval for AI agents (signed snapshots, MCP-native, Apache-2.0)". **(Day 20)**
+25. Outreach to first 10 named ICP-1 customers (per [mrr-plan.md](./strategy/mrr-plan.md)). **(Day 20–21)**
 
 ---
 
-## Immediate Action Items — ordered around ICP needs
+## P1 — Month 2 (deepens ICP-1 activation)
 
-Phase ordering matches [strategy/gtm.md](./strategy/gtm.md). Each item names the ICP it unblocks.
-
-### P0 — Week 1 (unblocks Persona A — Maya)
-
-These items are the prerequisites for the Show HN launch in [strategy/gtm.md](./strategy/gtm.md).
-
-1. **MCP server (TypeScript)** published to npm + Anthropic MCP directory. Highest-leverage single artifact of 2026 (97M monthly SDK downloads — see [strategy/market.md](./strategy/market.md)).
-2. ~~**Python SDK** published to PyPI as `unsearch`.~~ ✅ Shipped — sync + async client at [`apps/sdk-py`](../apps/sdk-py/README.md), ready for `pip install unsearch`.
-3. **Polish `docs/migration/from-tavily.md`** — 5-minute migration headline, 3-line code diff, CTA to playground.
-4. **Wire Google OAuth** (env keys are in `.env.example`; flow is not). Removes ~20% signup drop vs social-login baseline.
-5. **Homepage hero rewrite** to the one-liner in [strategy/positioning.md](./strategy/positioning.md).
-6. **Pricing-comparison table** on `/pricing` with citations + access dates.
-
-### P1 — Weeks 2–4 (deepens Persona A activation)
-
-7. **LangChain `langchain-community` integration PR** open (table stakes).
-8. **`/playground` "copy as cURL / TS / Python" buttons** to reduce playground→external-call drop.
-9. **Sentry breadcrumb** measuring time-delta between API key creation and first external 200.
-10. **Free-tier "what would this cost on Tavily/Exa?" callout** in the dashboard usage view (anchor the value).
-11. **PostHog events** wired for the activation funnel stages in [strategy/user-journey.md](./strategy/user-journey.md).
-
-### P2 — Month 2 (unlocks Persona B — Priya)
-
-12. **`/team` and `/settings` routes** (blocks Persona B onboarding — currently placeholder).
-13. **Annual billing default at checkout** (structural fix for the 23% GRR budget-tier problem — see [strategy/pricing.md](./strategy/pricing.md)).
-14. **Self-host quickstart guide** with a `docker compose up` path that hits parity with managed in <30 minutes.
-15. **Vercel AI SDK adapter** ships.
-16. **LlamaIndex retriever** — already shipped as `@unsearch/llamaindex`; publish a tutorial post.
-
-### P3 — Month 3–6 (deepens Persona B revenue motion)
-
-17. **Stripe metered overage billing** (schema fields exist; need Stripe metered prices wired). Smooths the upgrade cliff.
-18. **PQL automation** — Workers cron that flags Free/Pro accounts crossing 50% utilization → Slack channel → founder DM template.
-19. **First Cloudflare Workers Launchpad partner conversation.**
-20. **Three published customer case studies** by month 9.
-
-### P4 — Month 12+ (unlocks Persona C — David)
-
-21. **SAML / OIDC SSO** (Enterprise tier prerequisite).
-22. **Audit logging** (D1 query log replay).
-23. **SOC 2 attestation work** — engage a vCISO / Drata / Vanta.
-24. **Dedicated Durable-Object pool + dedicated Container replicas** for Enterprise SLA tier.
+26. **LangChain `langchain-community` integration PR** open (table stakes).
+27. **Vercel AI SDK adapter** published.
+28. **`/playground` "copy as cURL / TS / Python" buttons.**
+29. **MCP server telemetry → PostHog** for the activation funnel.
+30. **Better Auth migration** off the localStorage JWT placeholder.
+31. **Google OAuth + GitHub OAuth** wired (keys already in `.env.example`).
+32. **Public roadmap + issue tracker** discipline on GitHub.
+33. **Self-host quickstart polish** — `wrangler deploy` from forked repo in < 5 min, with a `/deploy` guided UX in the dashboard.
 
 ---
 
-## Feature Roadmap (re-ordered around ICP needs)
+## P2 — Month 3 (verification wedge maturity)
 
-### Phase 1 — PLG launch (Months 1–6) — Persona A
-- [x] Core AI pipeline + Workers AI integration
-- [x] Tavily-compatible `/api/v1/agent/search`
-- [x] Exa-compatible neural endpoints
-- [x] Stripe billing + dashboard + playground
-- [x] TypeScript SDK + LlamaIndex retriever
-- [x] Python SDK (sync + async, `pip install unsearch`)
-- [x] CD pipeline + Sentry + smoke tests
-- [ ] MCP server (P0, Week 1)
-- [ ] LangChain integration PR (P1, Week 2)
-- [ ] Google OAuth wiring (P0, Week 1)
-- [ ] Annual billing default at checkout (P2, Month 2)
-- [ ] Self-host quickstart with 30-min parity (P2, Month 2)
-- [ ] Knowledge graph hardening → ship out of beta (rolling, Months 3–6)
-- [ ] Topic monitoring hardening → ship out of beta (rolling, Months 3–6)
-- [ ] Fact verification hardening → ship out of beta (rolling, Months 3–6)
-- [ ] Deep research agent hardening → ship out of beta (rolling, Months 3–6)
-
-### Phase 2 — Revenue motion (Months 6–18) — Persona B
-- [ ] `/team` and `/settings` dashboard routes
-- [ ] Stripe metered overage billing
-- [ ] PQL automation (utilization >50% → Slack alert)
-- [ ] Customer support automation (docs-search-bot dogfooding our own API)
-- [ ] First Cloudflare Workers Launchpad partner integration
-- [ ] Three published customer case studies
-
-### Phase 3 — Enterprise (Months 18–24) — Persona C
-- [ ] SAML / OIDC SSO
-- [ ] Audit logging (D1 query log replay)
-- [ ] SOC 2 attestation (engage vCISO / Drata / Vanta)
-- [ ] Dedicated Durable-Object pool for SLA tier
-- [ ] First Internal-Document connector (only if a paying Enterprise contract requires it)
-- [ ] Multi-region active-active deployment
+34. **`verify/claim` v2** with span-level evidence highlighting in dashboard.
+35. **WACZ export endpoint** — download a signed `.wacz` for any audit-log entry. Submit to Webrecorder community for feedback.
+36. **BYO storage** (S3, GCS, Azure Blob) for snapshot store on self-host.
+37. **Stripe metered overage billing** (schema fields exist; wire Stripe metered prices).
+38. **PQL automation** — Workers cron flags Free/Pro accounts crossing 50% utilization → Slack channel → founder DM template.
+39. **Quarterly "Hallucinated Citation Index" v1 published.**
 
 ---
 
-## Technical Debt
+## P3 — Months 4–6 (unlock ICP-2 — David)
 
-### High Priority
+40. **Self-host paid contract motion** — first self-host v1 ($24K/yr) close; documentation hardening based on first 3 deployments.
+41. **SOC 2 Type I** evidence package ready. Engage vCISO / Drata / Vanta.
+42. **HIPAA BAA-ready** baseline; first healthcare customer reachable.
+43. **GDPR DPA** templated (already in market via Common Paper).
+44. **Customer-success automation** — docs-search-bot dogfooding our own MCP for tier-1 support.
+45. **First Cloudflare Workers Launchpad** co-sell.
+46. **Three published customer case studies** by Month 6 (legal, medical, fintech).
+
+---
+
+## P4 — Months 7–9 (Self-host v2 + Enterprise)
+
+47. **WACZ public-key signing (PKI v2)** — replaces HMAC v1 for self-host customers who want cryptographic provenance owned by them.
+48. **Differential snapshot diffs** — surface changes when a source mutates between fetches.
+49. **Enterprise SSO (SAML / OIDC) + RBAC.**
+50. **Dedicated Container replicas + Durable-Object pool** for Enterprise / Self-host v2 SLA tier.
+51. **SOC 2 Type II audit** underway; **ISO 42001 attestation** in flight.
+52. **Per-customer "agent run replay" UI** in dashboard.
+53. **Self-host v2 ($99K/yr)** GA with full BAA + DPA + dedicated co-managed CF-account deployment.
+54. **Knowledge-graph endpoints** brought to GA if a paying Enterprise customer requires them.
+
+---
+
+## P5 — Months 10–12 (compliance partner motion)
+
+55. **BYOC (Bring Your Own Cloud) generalization** beyond Cloudflare — AWS / GCP / Azure deploy templates.
+56. **Marketplace listings** — AWS, Azure, Google Cloud.
+57. **Big4 / Tier-1 consultancy co-sell** pipeline operationalized (Deloitte AI Risk, EY Trusted AI, PwC AI Governance, KPMG AI Risk).
+58. **NIST AI RMF examples directory** submission (post-SOC 2 Type I).
+59. **First BigLaw or top-10-bank logo.**
+
+---
+
+## Anti-roadmap — explicitly NOT shipping
+
+- Vector DB hosting (Vectorize is enough).
+- Vertical legal / medical UI (we are infra, not apps — Harvey, Hebbia, Casetext are not the target).
+- Generic SEO scraping (we respect robots.txt and ToS).
+- Closed-source SaaS-only paths.
+- Per-seat pricing.
+- Free-tier removal under any circumstance.
+- White-label / private-fork self-host (refuse politely; Apache 2.0 is the lever).
+- Open-core feature splits (closed feature + open base would break the wedge).
+
+---
+
+## Technical debt
+
+### High priority
 | Issue | Location | Impact | Fix |
 |-------|----------|--------|-----|
-| In-memory vectors | `services/rag/rag.py` | Not scalable | Migrate to Vectorize |
-| Puppeteer stub | `scraping/puppeteer_client.py` | No fallback | Use CF Browser |
-| Sync DB operations | Multiple files | Performance | Add async |
+| Hardcoded localhost URLs | `app/config.py:31,37,47,79,140` | Container deploy blocks | Week 1, Day 4 — env-driven container DNS |
+| Container binding disabled | `workers/wrangler.toml:84-90` | Workers cannot reach FastAPI | Week 1, Day 5 — uncomment after container deploys |
+| `engines_succeeded` not tracked | `app/api/v1/search.py:193` | Metric gap | Low priority; close-out post-Week 3 |
+| localStorage JWT placeholder | `apps/web/lib/auth.ts` | v1 only; not production for ICP-2 | Month 2 — Better Auth migration |
 
-### Medium Priority
+### Medium priority
 | Issue | Location | Impact |
 |-------|----------|--------|
-| Hardcoded limits | Config | Inflexible |
-| Missing retries | API calls | Reliability |
+| Sync DB operations | Multiple files | Performance |
+| Missing retries on third-party engine calls | `app/services/searxng.py` (partial) | Reliability |
 | No request tracing | Middleware | Debugging |
 
-### Low Priority
+### Low priority
 | Issue | Location | Impact |
 |-------|----------|--------|
 | Inconsistent naming | Services | Maintainability |
@@ -225,91 +185,59 @@ These items are the prerequisites for the Show HN launch in [strategy/gtm.md](./
 
 ---
 
-## API Endpoint Summary
+## API endpoint summary
 
-### Total Endpoints: 75+
+### Total endpoints: 93 across 14 routers
 
-| Category | Count | Path Prefix |
+| Category | Count | Path prefix |
 |----------|-------|-------------|
-| Agent (Tavily-compatible) | 5 | `/api/v1/agent/` |
+| Agent (Tavily-compatible compatibility surface) | 5 | `/api/v1/agent/` |
 | Search | 6 | `/api/v1/search/` |
 | Neural (Exa-compatible) | 6 | `/api/v1/neural/` |
-| Knowledge (Glean-like) | 5 | `/api/v1/knowledge/` |
-| Connectors | 6 | `/api/v1/connectors/` |
-| Monitor | 6 | `/api/v1/monitor/` |
-| Verify | 4 | `/api/v1/verify/` |
+| Knowledge (in beta) | 5 | `/api/v1/knowledge/` |
+| Monitor (in beta) | 6 | `/api/v1/monitor/` |
+| **Verify (the wedge)** | 4 (3 GA Week 2) | `/api/v1/verify/` |
+| **Audit (the wedge)** | 1 (GA Week 2) | `/api/v1/audit/` |
 | RAG | 8 | `/api/v1/rag/` |
 | Enhanced | 6 | `/api/v1/enhanced/` |
 | Advanced v2 | 15 | `/api/v1/v2/advanced/` |
 | Auth | 6 | `/api/v1/auth/` |
 | Billing | 4 | `/api/v1/billing/` |
+| **MCP transport** | 1 endpoint (4 tools) | `/mcp` |
 
 ---
 
-## Deployment Architecture
-
-### Development
-```
-Local Machine
-    └── Docker Compose
-        ├── FastAPI (Python backend)
-        ├── SearXNG (Search)
-        ├── Redis (Cache)
-        └── PostgreSQL (Database)
-```
-
-### Production
-```
-Cloudflare Edge (300+ PoPs)
-    └── Workers (Router)
-        ├── Workers AI (LLM/Embeddings)
-        ├── Vectorize (Vectors)
-        ├── Queues (Async tasks)
-        ├── D1 (Edge database)
-        ├── KV (Caching)
-        └── R2 (Storage)
-            │
-            ▼
-        FastAPI Origin (Complex operations)
-            ├── SearXNG
-            ├── Redis
-            └── PostgreSQL
-```
-
----
-
-## Success Metrics
+## Success metrics
 
 ### Technical
+
 | Metric | Target | Current |
 |--------|--------|---------|
-| API uptime | 99.9% | N/A |
-| P95 latency | <200ms | ~300ms |
-| Edge latency | <50ms | N/A |
+| API uptime | 99.5% v1 / 99.9% Enterprise | N/A (not deployed) |
+| `search` P95 latency | <800ms | N/A |
+| `verify/claim` P95 latency | <2s | N/A |
+| Container idle cost | <$15/mo | N/A |
+| Edge p50 | <50ms | N/A |
 | Test coverage | >80% | ~40% |
-| Error rate | <0.1% | ~1% |
+| Error rate | <0.1% | ~1% on internal benchmark |
 
-### Feature parity (corrected)
-| Competitor | Scope | Parity |
-|------------|-------|--------|
-| Tavily | Drop-in API compat | ✅ Complete |
-| Exa | Neural endpoints | ✅ Complete |
-| Glean | Open-web search (not internal docs — that's not our scope) | N/A — different category, see [strategy/jtbd.md](./strategy/jtbd.md) anti-jobs |
+### Business — see [strategy/mrr-plan.md](./strategy/mrr-plan.md) for the month-by-month plan
 
-### Business — see [strategy/mrr-plan.md](./strategy/mrr-plan.md) for the full month-by-month plan
 | Milestone | Target month |
 |-----------|--------------|
-| $10K MRR | Month 9 |
-| $50K MRR | Month 18 |
-| $100K MRR | Month 24 |
+| $25K MRR | Month 3 |
+| $250K MRR | Month 9 |
+| $750K MRR | Month 12 |
 
 ---
 
-## Contact & Resources
+## Contact & resources
 
-- **Feature Matrix:** `docs/feature-matrix.md`
-- **Architecture:** `docs/architecture.md`
-- **AI Pipeline:** `docs/ai-pipeline.md`
-- **Cloudflare Architecture:** `docs/cloudflare-architecture.md`
-- **API Reference:** `http://localhost:8000/docs`
-- **Edge Worker Docs:** `workers/README.md`
+- **Feature matrix:** [`docs/feature-matrix.md`](./feature-matrix.md)
+- **Architecture:** [`docs/architecture.md`](./architecture.md)
+- **Cloudflare architecture:** [`docs/cloudflare-architecture.md`](./cloudflare-architecture.md)
+- **AI pipeline:** [`docs/ai-pipeline.md`](./ai-pipeline.md)
+- **Citation envelope schema:** [`docs/citation-envelope.md`](./citation-envelope.md)
+- **API reference:** `http://localhost:8000/docs` (local) / [api.unsearch.dev/docs](https://api.unsearch.dev/docs) (after Week 1 deploy)
+- **Edge Worker docs:** [`workers/README.md`](../workers/README.md)
+- **Approved 3-week rebuild plan:** `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`
