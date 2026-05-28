@@ -29,7 +29,7 @@ This decision is what enables the "Multi-Engine Aggregation 🚀" row in [`docs/
 - **Pro:** Zero per-query cost for the search itself — we pay only for the SearXNG host (and for the AI inference layer on top).
 - **Pro:** Engine plurality is a feature: callers can ask for `["google", "duckduckgo", "brave"]` and get a deduped union.
 - **Pro:** Self-host story is honest — the same SearXNG that powers `api.unsearch.dev` runs in the user's `docker compose up`.
-- **Con:** SearXNG is community-maintained. Engines break when upstream providers change their HTML. We mitigate with multi-engine fallback in `app/services/search/`, but the failure mode is real.
+- **Con:** SearXNG is community-maintained. Engines break when upstream providers change their HTML. We mitigate with multi-engine fallback in `backend/app/services/search/`, but the failure mode is real.
 - **Con:** No SLA on SearXNG itself. We accept this and design for graceful degradation (route around dead engines, expose engine health via `/api/v1/agent/health`).
 - **Con:** Some providers (notably Google) actively rate-limit SearXNG IPs. We work around with proxy rotation in production; the open-source self-host docs note this honestly.
 

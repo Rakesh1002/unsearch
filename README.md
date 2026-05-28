@@ -154,23 +154,29 @@ docker compose -f docker-compose.quickstart.yml up -d
 
 ```
 unsearch/
-├── app/                    # FastAPI backend — search, extract, verify, audit
-├── apps/
-│   ├── backend/            # FastAPI backend (monorepo layout — same code, packaged for Docker)
-│   ├── web/                # Next.js dashboard on Cloudflare Workers (@opennextjs/cloudflare)
-│   ├── sdk-ts/             # @unsearch/sdk — TypeScript SDK
-│   ├── sdk-py/             # unsearch — Python SDK (sync + async)
-│   ├── sdk-llamaindex/     # @unsearch/llamaindex — LlamaIndex retriever
-│   └── mcp-server/         # @unsearch/mcp-server — MCP server (P0 Week 3)
-├── workers/                # Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema
+├── backend/                # FastAPI backend — search, extract, verify, audit (Python 3.11+)
+│   ├── app/                #   Python module (`from app.X import Y`)
+│   ├── alembic/            #   Postgres migrations
+│   ├── tests/              #   pytest suite
+│   ├── Dockerfile          #   Self-host image
+│   └── Dockerfile.cloudflare #   CF Containers image
+├── apps/                   # TypeScript / Python SDK packages (pnpm workspace)
+│   ├── web/                #   Next.js dashboard on Cloudflare Workers (@opennextjs/cloudflare)
+│   ├── sdk-ts/             #   @unsearch/sdk — TypeScript SDK
+│   ├── sdk-py/             #   unsearch — Python SDK (sync + async)
+│   ├── sdk-llamaindex/     #   @unsearch/llamaindex — LlamaIndex retriever
+│   └── mcp-server/         #   @unsearch/mcp-server — MCP server (P0 Week 3)
+├── workers/                # Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema, containers.toml
+├── infra/                  # Operational config (self-host stack + CF Container sidecars)
+│   ├── nginx/              #   Reverse-proxy for self-host TLS
+│   ├── monitoring/         #   Prometheus + Grafana provisioning
+│   └── searxng/            #   SearXNG meta-search engine config (production settings.yml)
 ├── docs/                   # Architecture, API reference, strategy, ADRs, runbooks
-├── alembic/                # Postgres migrations (origin DB)
-├── searxng/                # SearXNG meta-search engine config
-├── monitoring/             # Prometheus + Grafana provisioning (self-host)
-└── docker-compose*.yml     # Self-host stacks
+├── scripts/                # Setup + ops scripts (manage.sh, setup-stripe.sh, …)
+└── docker-compose*.yml     # Self-host stacks (build context = root; mount paths from infra/)
 ```
 
-The architecture (Workers fronting FastAPI on Cloudflare Containers GA, with D1 / KV / Vectorize / R2 / Queues / Durable Objects + SearXNG sidecar) is documented in [`docs/cloudflare-architecture.md`](./docs/cloudflare-architecture.md). The five new ADRs that drove the 2026-05-28 reposition are at [`docs/adr/`](./docs/adr/README.md) (#0009 through #0013).
+The architecture (Workers fronting FastAPI on Cloudflare Containers GA, with D1 / KV / Vectorize / R2 / Queues / Durable Objects + SearXNG sidecar) is documented in [`docs/cloudflare-architecture.md`](./docs/cloudflare-architecture.md). The five new ADRs that drove the 2026-05-28 reposition are at [`docs/adr/`](./docs/adr/README.md) (#0009 through #0013). ADR-0006 has a 2026-05-28 amendment describing the directory restructure (`app/` → `backend/app/`, ops into `infra/`).
 
 ---
 
@@ -331,10 +337,10 @@ Stripe billing, SMTP, OAuth, monitoring — all documented in [`docs/configurati
 ## Development
 
 ```bash
-# Python backend
+# Python backend (everything backend-related lives in backend/)
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+pip install -r backend/requirements.txt
+cd backend && uvicorn app.main:app --reload --port 8000
 
 # Frontend (Next.js on Workers)
 pnpm --filter @unsearch/web dev
@@ -348,9 +354,14 @@ cd apps/sdk-py && pip install -e ".[test]" && pytest -q
 # TypeScript SDK
 pnpm --filter @unsearch/sdk build && pnpm --filter @unsearch/sdk test
 
-# Backend tests
-pytest tests/unit/ -v --cov=app
-pytest tests/integration/ -v
+# Backend tests (from backend/ where pytest.ini lives)
+cd backend && pytest tests/unit/ -v --cov=app
+cd backend && pytest tests/integration/ -v
+
+# Or via the Makefile (handles the `cd backend` for you)
+make dev       # uvicorn with --reload
+make test      # full test suite
+make migrate   # alembic upgrade head
 ```
 
 Lint, type-check, and test commands are wired into CI ([.github/workflows/](./.github/workflows/)). Conventions live in [CLAUDE.md](./CLAUDE.md) and [CONTRIBUTING.md](./CONTRIBUTING.md).

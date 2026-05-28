@@ -30,10 +30,10 @@ UnSearch's origin runtime is **Cloudflare Containers**. The FastAPI backend (`ap
 
 Practical implementation:
 
-- `Dockerfile.cloudflare` packages FastAPI + SearXNG together (supervisord-managed) or as adjacent containers wired via internal DNS. The two-container topology is preferred long-term for independent scaling.
+- `backend/Dockerfile.cloudflare` packages FastAPI + SearXNG together (supervisord-managed) or as adjacent containers wired via internal DNS. The two-container topology is preferred long-term for independent scaling.
 - `wrangler.toml` (root) declares the Container with active-CPU billing.
 - `workers/wrangler.toml:84-90` Container service binding is uncommented; Worker requests resolve to the Container by hostname.
-- Hardcoded `localhost` URLs in `app/config.py:31,37,47,79,140` are replaced with env-driven container-internal DNS.
+- Hardcoded `localhost` URLs in `backend/app/config.py:31,37,47,79,140` are replaced with env-driven container-internal DNS.
 - Hosted and self-host topologies use identical Docker images; self-host customers `wrangler containers deploy` from their forked repo.
 
 ## Consequences

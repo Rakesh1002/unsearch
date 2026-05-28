@@ -78,8 +78,8 @@ services:
 
   nginx:
     volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     logging:
       driver: "json-file"

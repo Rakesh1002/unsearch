@@ -28,11 +28,12 @@ RUN useradd --create-home --shell /bin/bash --uid 10001 app
 WORKDIR /app
 
 # Python deps
-COPY requirements.txt .
+# Build context = repo root; backend source lives under backend/.
+COPY backend/requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# App source (omit tests, monitoring, alembic migrations from runtime image)
-COPY --chown=app:app app/ ./app/
+# App source (omit tests, alembic migrations from runtime image)
+COPY --chown=app:app backend/app/ ./app/
 COPY --chown=app:app scripts/ ./scripts/
 
 USER app

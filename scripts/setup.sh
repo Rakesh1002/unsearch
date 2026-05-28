@@ -34,7 +34,7 @@ pip install --upgrade pip
 
 # Install dependencies
 echo "📥 Installing dependencies..."
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Copy environment file if it doesn't exist
 if [ ! -f ".env" ]; then
@@ -56,10 +56,10 @@ else
     echo "⚠️  Docker not found. You'll need to set up services manually."
 fi
 
-# Run database migrations
+# Run database migrations (from backend/ where alembic.ini lives)
 echo "🗄️ Running database migrations..."
 if command -v alembic &> /dev/null; then
-    alembic upgrade head
+    (cd backend && alembic upgrade head)
 else
     echo "⚠️  Alembic not found in PATH. Skipping migrations."
 fi

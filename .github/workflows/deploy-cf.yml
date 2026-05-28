@@ -91,7 +91,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - run: pip install httpx pytest
-      - run: pytest tests/e2e/test_prod_smoke.py -v
+      - run: pytest backend/tests/e2e/test_prod_smoke.py -v
         env:
           UNSEARCH_BASE_URL: https://api.unsearch.dev
           UNSEARCH_TEST_API_KEY: ${{ secrets.UNSEARCH_TEST_API_KEY }}

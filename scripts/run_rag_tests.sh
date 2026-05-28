@@ -6,6 +6,10 @@
 
 set -e
 
+# Resolve repo root and cd into backend/ (where pytest.ini + tests/ live)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$(dirname "$SCRIPT_DIR")/backend"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
