@@ -124,7 +124,7 @@ Phase ordering matches [strategy/gtm.md](./strategy/gtm.md). Each item names the
 These items are the prerequisites for the Show HN launch in [strategy/gtm.md](./strategy/gtm.md).
 
 1. **MCP server (TypeScript)** published to npm + Anthropic MCP directory. Highest-leverage single artifact of 2026 (97M monthly SDK downloads — see [strategy/market.md](./strategy/market.md)).
-2. **Python SDK** published to PyPI as `unsearch`. Even a thin wrapper closes the table-stakes parity gap.
+2. ~~**Python SDK** published to PyPI as `unsearch`.~~ ✅ Shipped — sync + async client at [`apps/sdk-py`](../apps/sdk-py/README.md), ready for `pip install unsearch`.
 3. **Polish `docs/migration/from-tavily.md`** — 5-minute migration headline, 3-line code diff, CTA to playground.
 4. **Wire Google OAuth** (env keys are in `.env.example`; flow is not). Removes ~20% signup drop vs social-login baseline.
 5. **Homepage hero rewrite** to the one-liner in [strategy/positioning.md](./strategy/positioning.md).
@@ -170,9 +170,9 @@ These items are the prerequisites for the Show HN launch in [strategy/gtm.md](./
 - [x] Exa-compatible neural endpoints
 - [x] Stripe billing + dashboard + playground
 - [x] TypeScript SDK + LlamaIndex retriever
+- [x] Python SDK (sync + async, `pip install unsearch`)
 - [x] CD pipeline + Sentry + smoke tests
 - [ ] MCP server (P0, Week 1)
-- [ ] Python SDK (P0, Week 1)
 - [ ] LangChain integration PR (P1, Week 2)
 - [ ] Google OAuth wiring (P0, Week 1)
 - [ ] Annual billing default at checkout (P2, Month 2)

@@ -110,7 +110,7 @@ If you need internal-document search, [Glean](https://www.glean.com) is the righ
 |---------|----------|--------|-----|-------|
 | **REST API** | ✅ | ✅ | ✅ | ✅ |
 | **TypeScript SDK** | ✅ (`@unsearch/sdk`) | ✅ | ✅ | ✅ |
-| **Python SDK** | 📋 (next release) | ✅ | ✅ | ✅ |
+| **Python SDK** | ✅ (`unsearch` on PyPI) | ✅ | ✅ | ✅ |
 | **LangChain Integration** | 📋 (PR in flight) | ✅ | ✅ | ✅ |
 | **LlamaIndex Integration** | ✅ (`@unsearch/llamaindex`) | ✅ | 🔶 | ❌ |
 | **MCP Server** | 📋 (next release) | ✅ | ❌ | ✅ |

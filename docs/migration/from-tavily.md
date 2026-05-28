@@ -70,11 +70,16 @@ pip install unsearch
 
 ```diff
 - from tavily import TavilyClient
-+ from unsearch import UnSearchClient
++ from unsearch import UnSearch
 
 - client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-+ client = UnSearchClient(api_key=os.getenv("UNSEARCH_API_KEY"))
++ client = UnSearch(api_key=os.getenv("UNSEARCH_API_KEY"))
+
+- hits = client.search("AI news")
++ hits = client.tavily_search({"query": "AI news"})
 ```
+
+> `tavily_search` posts to `/api/v1/agent/search`, which mirrors Tavily's request/response shape. Use `client.search({...})` (the UnSearch-native shape) for richer parameters like `engines`, `safe_search`, and `scrape_content`.
 
 ### Step 4: Update Environment Variables
 
