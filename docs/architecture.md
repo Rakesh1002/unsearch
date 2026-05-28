@@ -64,10 +64,10 @@ ASCII diagrams elide a lot. The intended invariants:
 - **Bindings:** `DB` (D1), `CACHE` (KV — auth/ratelimit/search cache), `BUCKET` (R2), `VECTORS` (Vectorize), `AI` (Workers AI), `QUEUE` (Cloudflare Queues), plus DO namespaces `RATE_LIMITER`, `TOPIC_MONITOR`, `RESEARCH_AGENT`, `SESSION_MANAGER`, and a service binding `BACKEND` → FastAPI Container.
 - **Per-route file map:** `agent.ts` (Tavily-compat), `auth.ts`, `billing.ts`, `knowledge.ts`, `monitor.ts`, `neural.ts`, `proxy.ts` (catch-all → Container), `rag.ts`, `search.ts`, `verify.ts`.
 
-### Backend Container — `app/` and `apps/backend/`
+### Backend Container — `app/`
 
 - **Stack:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy + Alembic (Postgres), Celery (Redis), httpx for outbound calls. 93 endpoints across 14 routers (counted via `app/api/v1/*.py` and `app/api/v2/*.py`).
-- **Two paths, same code.** `app/` is the historic single-package layout still imported by production (`uvicorn app.main:app`). `apps/backend/` is the monorepo-shaped mirror that builds the Docker image and ships under [`Dockerfile.cloudflare`](../Dockerfile.cloudflare). A future PR will collapse them — see [ADR-0006](./adr/0006-monorepo-with-apps-and-workers.md).
+- **Single source of truth.** `app/` is the only backend layout — the prior `apps/backend/` monorepo-shaped mirror was a stale fork (different branding, diverged code paths, fewer Alembic migrations) and was removed in the 2026-05-28 restructure. Production imports `uvicorn app.main:app`; the Cloudflare Container image ships from [`Dockerfile.cloudflare`](../Dockerfile.cloudflare) which builds from root.
 - **Service layout:** `app/services/core/` (DB, KV, queues, D1 client), `app/services/search/` (SearXNG orchestration + dedup + rerank), `app/services/scraping/` (static + JS + PDF), `app/services/extraction/` (entities, tables, attributes), `app/services/crawling/`, `app/services/rag/`, `app/services/ai/` (Workers AI client + model-tier selector).
 - **Inbound interface:** invoked by the edge worker via service binding for endpoints that aren't pure-TypeScript. The Container does *not* face the public internet directly in production.
 
@@ -175,7 +175,6 @@ From [docs/roadmap.md § Technical Debt](./roadmap.md):
 | In-memory vector store | `app/services/rag/rag.py` | Doesn't scale beyond a small corpus | Migrate fully to Vectorize (most paths already use it; a few are still legacy) |
 | Puppeteer stub | `app/services/scraping/puppeteer_client.py` | No fallback when CF Browser Rendering unavailable | Either wire CF Browser Rendering or drop the stub |
 | Sync DB operations | Multiple Container files | Blocks Uvicorn worker threads under load | Move to async SQLAlchemy where it matters |
-| Two backend layouts (`app/` vs `apps/backend/`) | Repo root vs monorepo | Onboarding confusion | Collapse — separate PR — see [ADR-0006](./adr/0006-monorepo-with-apps-and-workers.md) |
 
 ---
 

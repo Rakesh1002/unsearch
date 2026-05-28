@@ -1,6 +1,6 @@
 # ADR-0006: Monorepo layout with `apps/*` and `workers/`
 
-- Status: Accepted
+- Status: Accepted (amended 2026-05-28 — `apps/backend/` consolidated into root `app/`)
 - Date: 2026-04-15
 - Deciders: @Rakesh1002
 
@@ -24,13 +24,13 @@ Use a **single Git repository** with this layout:
 
 ```
 unsearch/
-├── app/                    # Legacy single-package FastAPI backend (kept as authoritative origin)
+├── app/                    # FastAPI backend (single source of truth, since the 2026-05-28 consolidation)
 ├── apps/                   # Monorepo packages
-│   ├── backend/            # Same FastAPI code, packaged for Container deploy
 │   ├── web/                # Next.js dashboard (on Workers via @opennextjs/cloudflare)
 │   ├── sdk-ts/             # @unsearch/sdk — TypeScript SDK
 │   ├── sdk-py/             # unsearch — Python SDK
-│   └── sdk-llamaindex/     # @unsearch/llamaindex — LlamaIndex retriever
+│   ├── sdk-llamaindex/     # @unsearch/llamaindex — LlamaIndex retriever
+│   └── mcp-server/         # @unsearch/mcp-server — npx-runnable MCP wrapper (P0 Week 3)
 ├── workers/                # Cloudflare Workers edge router + Durable Objects + D1 schema
 ├── docs/                   # All long-form docs (this directory)
 ├── alembic/                # Postgres migrations (origin DB)
@@ -40,10 +40,23 @@ unsearch/
 ```
 
 - **JavaScript/TypeScript packages** use **pnpm workspaces** (`pnpm-workspace.yaml`) — one lockfile, one `node_modules`, fast install.
-- **Python packages** are independent — backend uses `requirements.txt` (root) and a Poetry-managed `pyproject.toml` (`apps/backend/`); SDK uses Hatchling (`apps/sdk-py/pyproject.toml`). No shared Python lockfile.
+- **Python backend** uses `requirements.txt` at the repo root. The Python SDK at `apps/sdk-py/` is independently packaged with Hatchling — no shared Python lockfile.
 - **CI scoping** — each `apps/*/` package has its own workflow under `.github/workflows/` (e.g., `sdk-py.yml`) triggered on `paths:` filters so unrelated changes don't run unrelated CI.
 
-The `app/` directory at the repo root is the **historic** single-package backend layout from v1. We kept it because it's the directory production currently imports from (`uvicorn app.main:app`) and migrating that import path is a separate change with its own deploy risk. `apps/backend/` is the monorepo-shaped mirror that builds the Docker image — same code, different packaging boundary.
+The `app/` directory at the repo root is the single source of truth for the backend. (Prior to the 2026-05-28 restructure there was also `apps/backend/` — see Amendment below.)
+
+## Amendment — 2026-05-28: `apps/backend/` consolidated into root `app/`
+
+The original "two backend layouts" footnote in the Consequences section became real friction. Audit found that `apps/backend/` had diverged from `app/`:
+
+- Different branding (`UnQuestRequest` vs `UnSearchRequest`)
+- Different import paths (`app.services.searxng` vs `app.services.core.searxng`)
+- Fewer Alembic migrations (2 vs 5)
+- Different `pytest.ini` DB config (sqlite vs postgres)
+- A 2,841-line production SearXNG `settings.yml` that was never mounted (the live mount path at `searxng/settings.yml` was a 40-line stub)
+- A stale `.github/workflows/deploy.yml` targeting Railway via `cd apps/backend` (Railway deploy is sunset by [ADR-0010](./0010-cloudflare-containers-as-origin-runtime.md))
+
+`apps/backend/` was removed in the same PR as this amendment. The production SearXNG config was salvaged to `searxng/settings.yml`. The Railway workflow was removed. The active `.github/workflows/ci-cd.yml` and `deploy-cf.yml` already target root `app/` and `workers/`. No production code path was affected.
 
 ## Consequences
 
@@ -51,7 +64,7 @@ The `app/` directory at the repo root is the **historic** single-package backend
 - **Pro:** New SDK languages (Go, Ruby, MCP server) drop into `apps/sdk-*/` with a clear template (mirror the TS SDK surface — see [ADR-0007](./0007-python-sdk-sync-and-async.md)).
 - **Pro:** Docs, ADRs, and code live next to each other. `git blame` on an architecture doc lands in the same history as the code it describes.
 - **Con:** Repo size grows monotonically. We mitigate with `path:` filters in CI and per-app `.gitignore`s, but `git clone` time is non-trivial for new contributors.
-- **Con:** Two backend layouts (`app/` and `apps/backend/`) is confusing for newcomers. The `docs/what-is-what.md` map documents this explicitly. A future PR will collapse them.
+- **Resolved 2026-05-28:** ~~Two backend layouts (`app/` and `apps/backend/`) is confusing for newcomers.~~ See Amendment above — `apps/backend/` removed; root `app/` is now the single source of truth.
 - **Con:** Tooling has to be polyglot — Python tests with pytest, TypeScript with vitest, the worker with `wrangler dev`. There's no single "run all tests" command; we accept this in exchange for keeping each ecosystem's conventions.
 
 ## Alternatives considered
