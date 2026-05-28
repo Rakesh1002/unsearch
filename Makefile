@@ -56,20 +56,20 @@ setup:
 
 install:
 	@echo "📥 Installing dependencies..."
-	@pip install -r requirements.txt
+	@pip install -r backend/requirements.txt
 
 # Development
 dev:
 	@echo "🔧 Starting development server..."
-	@uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	@cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 worker:
 	@echo "👷 Starting Celery worker..."
-	@celery -A app.workers.tasks worker --loglevel=info
+	@cd backend && celery -A app.workers.tasks worker --loglevel=info
 
 flower:
 	@echo "🌸 Starting Flower monitoring..."
-	@celery -A app.workers.tasks flower
+	@cd backend && celery -A app.workers.tasks flower
 
 # Testing
 test:
@@ -95,27 +95,27 @@ test-coverage:
 # Code quality
 lint:
 	@echo "🔍 Running linting..."
-	@flake8 app/ tests/
-	@isort --check-only app/ tests/
-	@black --check app/ tests/
+	@flake8 backend/app backend/tests
+	@isort --check-only backend/app backend/tests
+	@black --check backend/app backend/tests
 
 format:
 	@echo "✨ Formatting code..."
-	@isort app/ tests/
-	@black app/ tests/
+	@isort backend/app backend/tests
+	@black backend/app backend/tests
 
 typecheck:
 	@echo "🔎 Running type checking..."
-	@mypy app/
+	@mypy backend/app
 
 # Database
 migrate:
 	@echo "🗄️ Running database migrations..."
-	@alembic upgrade head
+	@cd backend && alembic upgrade head
 
 migration:
 	@echo "📝 Creating new migration..."
-	@read -p "Migration message: " msg; alembic revision --autogenerate -m "$$msg"
+	@read -p "Migration message: " msg; cd backend && alembic revision --autogenerate -m "$$msg"
 
 # Docker
 docker-build:
@@ -202,7 +202,7 @@ dev-setup: env install migrate
 prod-check:
 	@echo "🔍 Running production readiness checks..."
 	@echo "Checking configuration..."
-	@python -c "from app.config import get_settings; s=get_settings(); print('✅ Configuration loaded')"
+	@cd backend && python -c "from app.config import get_settings; s=get_settings(); print('✅ Configuration loaded')"
 	@echo "Checking dependencies..."
 	@pip check
 	@echo "Running security audit..."

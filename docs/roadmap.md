@@ -54,21 +54,21 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 ### Week 1 — Deploy what exists + reposition
 
 1. Rewrite [README](../README.md), [strategy docs](./strategy/README.md), [feature-matrix](./feature-matrix.md), and apps/web/app/page.tsx around verifiable retrieval. **(Day 1–2)** ✅ (this PR)
-2. Build `Dockerfile.cloudflare` image with FastAPI + SearXNG sidecar (supervisord-managed). **(Day 3)**
+2. Build `backend/Dockerfile.cloudflare` image with FastAPI + SearXNG sidecar (supervisord-managed). **(Day 3)**
 3. `wrangler containers deploy` on Cloudflare Containers GA (active-CPU billing). **(Day 3–4)**
-4. Resolve all `localhost` refs in `app/config.py:31,37,47,79,140` to container-internal DNS. **(Day 4)**
+4. Resolve all `localhost` refs in `backend/app/config.py:31,37,47,79,140` to container-internal DNS. **(Day 4)**
 5. Uncomment container binding `workers/wrangler.toml:84-90`; `wrangler deploy` Hono edge to `api.unsearch.dev`. **(Day 5)**
 6. `cd apps/web && pnpm install && pnpm cf:build && pnpm cf:deploy` to `app.unsearch.dev`. **(Day 6)**
 7. DNS: `unsearch.dev` → landing, `app.unsearch.dev` → dashboard, `api.unsearch.dev` → API/MCP. **(Day 7)**
 
 ### Week 2 — Verification wedge
 
-8. Build `app/services/citation_store.py` — R2 content-addressable snapshot store (sha256-keyed). **(Day 8–9)**
-9. Update `app/api/v1/search.py:30` + `app/api/v1/agent.py:45` to compute hash + write snapshot for every result. **(Day 9–10)**
+8. Build `backend/app/services/citation_store.py` — R2 content-addressable snapshot store (sha256-keyed). **(Day 8–9)**
+9. Update `backend/app/api/v1/search.py:30` + `backend/app/api/v1/agent.py:45` to compute hash + write snapshot for every result. **(Day 9–10)**
 10. WACZ-aligned signed citation envelope (HMAC v1, key from `wrangler secret`); D1 schema for `citations` table. **(Day 10)**
 11. `POST /api/v1/verify/citation` — return pinned snapshot + live diff. **(Day 11)**
 12. `POST /api/v1/verify/claim` — re-fetch + Workers AI grader (llama-3.3-70b balanced) → `{supported, evidence_spans, confidence}`. **(Day 11–12)**
-13. Promote `app/api/v1/verify.py` from 🔶 beta to ✅ GA in feature matrix. **(Day 12)**
+13. Promote `backend/app/api/v1/verify.py` from 🔶 beta to ✅ GA in feature matrix. **(Day 12)**
 14. New dashboard page `apps/web/app/(dashboard)/verify/page.tsx`. **(Day 13)**
 15. New dashboard page `apps/web/app/(dashboard)/audit/page.tsx`; D1 `verifications` table. **(Day 14)**
 
@@ -164,16 +164,16 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 ### High priority
 | Issue | Location | Impact | Fix |
 |-------|----------|--------|-----|
-| Hardcoded localhost URLs | `app/config.py:31,37,47,79,140` | Container deploy blocks | Week 1, Day 4 — env-driven container DNS |
+| Hardcoded localhost URLs | `backend/app/config.py:31,37,47,79,140` | Container deploy blocks | Week 1, Day 4 — env-driven container DNS |
 | Container binding disabled | `workers/wrangler.toml:84-90` | Workers cannot reach FastAPI | Week 1, Day 5 — uncomment after container deploys |
-| `engines_succeeded` not tracked | `app/api/v1/search.py:193` | Metric gap | Low priority; close-out post-Week 3 |
+| `engines_succeeded` not tracked | `backend/app/api/v1/search.py:193` | Metric gap | Low priority; close-out post-Week 3 |
 | localStorage JWT placeholder | `apps/web/lib/auth.ts` | v1 only; not production for ICP-2 | Month 2 — Better Auth migration |
 
 ### Medium priority
 | Issue | Location | Impact |
 |-------|----------|--------|
 | Sync DB operations | Multiple files | Performance |
-| Missing retries on third-party engine calls | `app/services/searxng.py` (partial) | Reliability |
+| Missing retries on third-party engine calls | `backend/app/services/searxng.py` (partial) | Reliability |
 | No request tracing | Middleware | Debugging |
 
 ### Low priority

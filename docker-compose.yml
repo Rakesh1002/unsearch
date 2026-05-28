@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: unsearch-api
     ports:
       - "8000:8000"
@@ -40,7 +42,7 @@ services:
       - SEARXNG_BASE_URL=http://searxng:8080/
       - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-changeme}
     volumes:
-      - ./searxng:/etc/searxng:rw
+      - ./infra/searxng:/etc/searxng:rw
     networks:
       - unsearch-net
     healthcheck:
@@ -96,7 +98,9 @@ services:
     restart: unless-stopped
 
   celery-worker:
-    build: .
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: unsearch-celery-worker
     command: celery -A app.workers.tasks worker --loglevel=info --concurrency=4
     environment:
@@ -116,7 +120,9 @@ services:
     restart: unless-stopped
 
   celery-beat:
-    build: .
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: unsearch-celery-beat
     command: celery -A app.workers.tasks beat --loglevel=info
     environment:
@@ -132,7 +138,9 @@ services:
     restart: unless-stopped
 
   flower:
-    build: .
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: unsearch-flower
     command: celery -A app.workers.tasks flower --port=5555
     ports:
@@ -154,8 +162,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - api
     networks:

@@ -1,15 +1,20 @@
 #!/bin/bash
-"""
-Test runner script for UnSearch API.
-"""
+# Test runner script for UnSearch API.
 
 set -e
 
+# Resolve repo root and cd into backend (where pytest.ini + tests/ live)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_DIR/backend"
+
 echo "🧪 Running UnSearch API tests..."
 
-# Activate virtual environment if it exists
-if [ -d "venv" ]; then
+# Activate virtual environment if it exists (search root then backend)
+if [ -d "$PROJECT_DIR/venv" ]; then
     echo "🔌 Activating virtual environment..."
+    source "$PROJECT_DIR/venv/bin/activate"
+elif [ -d "venv" ]; then
     source venv/bin/activate
 fi
 

@@ -201,7 +201,7 @@ restore_postgres() {
         
         # Run migrations
         log_info "Running database migrations..."
-        cd "$PROJECT_ROOT"
+        cd "$PROJECT_ROOT/backend"
         alembic upgrade head
         
         return 0

@@ -17,7 +17,7 @@ UnSearch v1 ran the classic "managed VPS + Postgres + Redis + Celery" stack. Thr
 Adopt **Cloudflare-native edge** as the default deploy target:
 
 - **Cloudflare Workers (Hono router)** front every request at `workers/src/index.ts`. Endpoints that don't need Python (KV cache hits, simple search proxying, auth checks, rate limiting) terminate at the edge.
-- **Cloudflare Containers** host the FastAPI origin (`Dockerfile.cloudflare`, `workers/containers.toml`) with auto-scale 0–10. Workloads that need Python's ecosystem (heavy scraping, complex orchestration, alembic migrations against the long-tail of features) proxy from the worker via a service binding.
+- **Cloudflare Containers** host the FastAPI origin (`backend/Dockerfile.cloudflare`, `workers/containers.toml`) with auto-scale 0–10. Workloads that need Python's ecosystem (heavy scraping, complex orchestration, alembic migrations against the long-tail of features) proxy from the worker via a service binding.
 - **D1** is the primary edge database (`workers/schema.sql`). Postgres remains as the local-dev origin DB and as an escape hatch for ops that need it.
 - **KV** for hot-path caches (auth, rate-limit counters, search cache hits).
 - **R2** for object storage (scraped HTML snapshots, large extracted artifacts).
@@ -34,7 +34,7 @@ The split between "lives at the edge" and "lives in the Container" is documented
 - **Pro:** Global p95 latency drops to <100ms for KV-cache hits, <200ms for Worker AI calls.
 - **Pro:** Free tier on the platform side maps neatly onto our 5,000-req/mo free tier on the product side.
 - **Con:** Self-host story is more complex than "docker compose up" — we keep `docker-compose.yml` working as the no-Cloudflare path (see [ADR-0005](./0005-apache-2-license-self-hostable-from-day-one.md)), but it deliberately leaves the edge-resident features (Vectorize, Workers AI) as optional.
-- **Con:** Cloudflare Containers is still maturing — direct bindings from inside Containers aren't available, so the FastAPI Container talks to D1 / KV / Queues over REST (see `app/services/core/d1_client.py`, `cache_kv.py`, `queue_producer.py`).
+- **Con:** Cloudflare Containers is still maturing — direct bindings from inside Containers aren't available, so the FastAPI Container talks to D1 / KV / Queues over REST (see `backend/app/services/core/d1_client.py`, `cache_kv.py`, `queue_producer.py`).
 - **Con:** Locks us into Cloudflare's specific quirks (Vectorize index size limits, Durable Object eviction semantics, Workers' 50ms CPU-time budget).
 
 ## Alternatives considered

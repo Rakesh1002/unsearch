@@ -4,7 +4,7 @@
 
 ## One-paragraph summary
 
-UnSearch is a search API for AI agents. Requests land on a **Cloudflare Workers** edge router (`workers/`), which either answers from the edge (KV cache hits, simple proxying, auth, rate-limit) or proxies to a **FastAPI Container** (`app/` and `apps/backend/`) for anything that needs Python's ecosystem (heavy scraping, RAG orchestration, alembic migrations, complex Stripe flows). State lives in **D1** (relational), **KV** (hot caches), **R2** (objects), and **Vectorize** (embeddings); async work runs on **Cloudflare Queues**; multi-step stateful workflows run inside **Durable Objects**. LLM inference and embeddings run on **Cloudflare Workers AI** (see [ADR-0004](./adr/0004-workers-ai-tiered-model-selection.md)). Web search aggregation is delegated to a self-hosted **SearXNG** instance (see [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md)). A **Next.js dashboard** (`apps/web/`) deployed via `@opennextjs/cloudflare` lives on the same Workers platform.
+UnSearch is verifiable web retrieval for AI agents. Requests land on a **Cloudflare Workers** edge router (`workers/`), which either answers from the edge (KV cache hits, simple proxying, auth, rate-limit, MCP transport) or proxies to a **FastAPI Container** (`backend/`) for anything that needs Python's ecosystem (heavy scraping, RAG orchestration, alembic migrations, complex Stripe flows, claim verification). State lives in **D1** (relational), **KV** (hot caches), **R2** (citation snapshots + objects), and **Vectorize** (embeddings); async work runs on **Cloudflare Queues**; multi-step stateful workflows run inside **Durable Objects**. LLM inference, embeddings, and the `verify_claim` grader run on **Cloudflare Workers AI** (see [ADR-0004](./adr/0004-workers-ai-tiered-model-selection.md)). Web search aggregation is delegated to a self-hosted **SearXNG** instance (see [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md)). A **Next.js dashboard** (`apps/web/`) deployed via `@opennextjs/cloudflare` lives on the same Workers platform.
 
 ---
 
@@ -26,8 +26,8 @@ UnSearch is a search API for AI agents. Requests land on a **Cloudflare Workers*
        │ cache  │    │ AI       │   │ Objects  │      │ binding →    │
        │ hit    │    │ (LLM)    │   │ (Rate-   │      │ FastAPI      │
        │  →     │    │   ↓      │   │ Limiter, │      │ Container    │
-       │ return │    │ Vector-  │   │ Topic-   │      │ (apps/       │
-       └────────┘    │ ize / D1 │   │ Monitor, │      │  backend/)   │
+       │ return │    │ Vector-  │   │ Topic-   │      │ (backend/    │
+       └────────┘    │ ize / D1 │   │ Monitor, │      │  app/*)      │
                      └──────────┘   │ Research-│      └──────┬───────┘
                                     │ Agent,   │             │
                                     │ Session) │             ▼
@@ -64,11 +64,12 @@ ASCII diagrams elide a lot. The intended invariants:
 - **Bindings:** `DB` (D1), `CACHE` (KV — auth/ratelimit/search cache), `BUCKET` (R2), `VECTORS` (Vectorize), `AI` (Workers AI), `QUEUE` (Cloudflare Queues), plus DO namespaces `RATE_LIMITER`, `TOPIC_MONITOR`, `RESEARCH_AGENT`, `SESSION_MANAGER`, and a service binding `BACKEND` → FastAPI Container.
 - **Per-route file map:** `agent.ts` (Tavily-compat), `auth.ts`, `billing.ts`, `knowledge.ts`, `monitor.ts`, `neural.ts`, `proxy.ts` (catch-all → Container), `rag.ts`, `search.ts`, `verify.ts`.
 
-### Backend Container — `app/`
+### Backend Container — `backend/`
 
-- **Stack:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy + Alembic (Postgres), Celery (Redis), httpx for outbound calls. 93 endpoints across 14 routers (counted via `app/api/v1/*.py` and `app/api/v2/*.py`).
-- **Single source of truth.** `app/` is the only backend layout — the prior `apps/backend/` monorepo-shaped mirror was a stale fork (different branding, diverged code paths, fewer Alembic migrations) and was removed in the 2026-05-28 restructure. Production imports `uvicorn app.main:app`; the Cloudflare Container image ships from [`Dockerfile.cloudflare`](../Dockerfile.cloudflare) which builds from root.
-- **Service layout:** `app/services/core/` (DB, KV, queues, D1 client), `app/services/search/` (SearXNG orchestration + dedup + rerank), `app/services/scraping/` (static + JS + PDF), `app/services/extraction/` (entities, tables, attributes), `app/services/crawling/`, `app/services/rag/`, `app/services/ai/` (Workers AI client + model-tier selector).
+- **Stack:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy + Alembic (Postgres), Celery (Redis), httpx for outbound calls. 93 endpoints across 14 routers (counted via `backend/app/api/v1/*.py` and `backend/app/api/v2/*.py`).
+- **Single source of truth.** `backend/` is the only backend layout — the prior duplicate `apps/backend/` was removed in PR #7, and the root-level scattering of `app/` + `alembic/` + `tests/` was consolidated into `backend/` in the 2026-05-28 reorg. Python module name stays `app/`; uvicorn invocation stays `uvicorn app.main:app` (now run from `backend/` cwd).
+- **Service layout:** `backend/app/services/core/` (DB, KV, queues, D1 client), `backend/app/services/search/` (SearXNG orchestration + dedup + rerank), `backend/app/services/scraping/` (static + JS + PDF), `backend/app/services/extraction/` (entities, tables, attributes), `backend/app/services/crawling/`, `backend/app/services/rag/`, `backend/app/services/ai/` (Workers AI client + model-tier selector + `verify_claim` grader).
+- **Container image:** `backend/Dockerfile.cloudflare` (CF Containers GA per ADR-0010) and `backend/Dockerfile` (self-host). Build context is the repo root; COPY paths are prefixed with `backend/`.
 - **Inbound interface:** invoked by the edge worker via service binding for endpoints that aren't pure-TypeScript. The Container does *not* face the public internet directly in production.
 
 ### Web dashboard — `apps/web/`
@@ -87,17 +88,17 @@ ASCII diagrams elide a lot. The intended invariants:
 
 All three are kept structurally parallel (same method names, same request/response shapes, same SSE-streaming pattern) so cross-language onboarding is mechanical.
 
-### SearXNG — `searxng/`
+### SearXNG — `infra/searxng/`
 
-The 70+-engine meta-search aggregator. Self-hosted as a Docker container (`docker-compose.yml`) in production and in self-host deployments. The FastAPI backend in `app/services/search/` is the only client. Configuration in `searxng/settings.yml`. See [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md).
+The 70+-engine meta-search aggregator. Self-hosted as a Docker container (`docker-compose.yml`) in production and in self-host deployments. The FastAPI backend in `backend/app/services/search/` is the only client. Configuration in `infra/searxng/settings.yml`. See [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md).
 
 ### Origin Postgres + Redis
 
 Postgres is the Container's origin database for everything that hasn't moved to D1 yet — primarily the legacy Stripe/billing state and the Celery task results table. Redis backs Celery's broker and Celery's result backend. Both run as containers in self-host (`docker-compose.yml`) and as managed services (Neon Postgres, Upstash Redis) in production.
 
-### Monitoring — `monitoring/`
+### Monitoring — `infra/monitoring/`
 
-Prometheus + Grafana, provisioned via `monitoring/docker-compose.monitoring.yml`. Dashboards in `monitoring/grafana/dashboards/unsearch-overview.json`. The Container exports Prometheus metrics at `/metrics`; the worker emits the same via Workers Analytics Engine. Detailed observability runbook: [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md).
+Prometheus + Grafana, provisioned via `infra/monitoring/docker-compose.monitoring.yml`. Dashboards in `infra/monitoring/grafana/dashboards/unsearch-overview.json`. The Container exports Prometheus metrics at `/metrics`; the worker emits the same via Workers Analytics Engine. Detailed observability runbook: [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md).
 
 ---
 
@@ -115,7 +116,7 @@ Prometheus + Grafana, provisioned via `monitoring/docker-compose.monitoring.yml`
 | Async job state | DO `ResearchAgent`, `TopicMonitor` (alarms), Queue messages | Each long-running operation owns its own DO; queue for dispatch |
 | Chat / pagination cursors | DO `SessionManager` | Per-user state with TTL eviction |
 
-The Container reaches D1 / KV / Vectorize / Queues over **REST**, not via direct bindings, because Cloudflare Containers do not yet expose direct bindings from inside the Container runtime. The REST clients live in `app/services/core/d1_client.py`, `cache_kv.py`, and `queue_producer.py`. The worker uses direct bindings — no REST hop.
+The Container reaches D1 / KV / Vectorize / Queues over **REST**, not via direct bindings, because Cloudflare Containers do not yet expose direct bindings from inside the Container runtime. The REST clients live in `backend/app/services/core/d1_client.py`, `cache_kv.py`, and `queue_producer.py`. The worker uses direct bindings — no REST hop.
 
 ---
 
@@ -130,8 +131,8 @@ The Container reaches D1 / KV / Vectorize / Queues over **REST**, not via direct
 ### Cache miss on `POST /api/v1/search`
 
 1. Worker → SearXNG via the Container service binding.
-2. Container `app/api/v1/search.py` orchestrates `app/services/search/`: parallel engine queries, dedup, optional rerank via Workers AI (worker-resident — Container calls back to the worker for AI inference).
-3. Optional scraping if `scrape_content: true` (`app/services/scraping/`).
+2. Container `backend/app/api/v1/search.py` orchestrates `backend/app/services/search/`: parallel engine queries, dedup, optional rerank via Workers AI (worker-resident — Container calls back to the worker for AI inference).
+3. Optional scraping if `scrape_content: true` (`backend/app/services/scraping/`).
 4. Container writes the response back to KV via REST (`cache_kv.py`).
 5. Container returns response to the worker, worker returns to caller.
 
@@ -172,8 +173,8 @@ From [docs/roadmap.md § Technical Debt](./roadmap.md):
 
 | Issue | Location | Impact | Plan |
 |-------|----------|--------|------|
-| In-memory vector store | `app/services/rag/rag.py` | Doesn't scale beyond a small corpus | Migrate fully to Vectorize (most paths already use it; a few are still legacy) |
-| Puppeteer stub | `app/services/scraping/puppeteer_client.py` | No fallback when CF Browser Rendering unavailable | Either wire CF Browser Rendering or drop the stub |
+| In-memory vector store | `backend/app/services/rag/rag.py` | Doesn't scale beyond a small corpus | Migrate fully to Vectorize (most paths already use it; a few are still legacy) |
+| Puppeteer stub | `backend/app/services/scraping/puppeteer_client.py` | No fallback when CF Browser Rendering unavailable | Either wire CF Browser Rendering or drop the stub |
 | Sync DB operations | Multiple Container files | Blocks Uvicorn worker threads under load | Move to async SQLAlchemy where it matters |
 
 ---

@@ -11,17 +11,17 @@ module.exports = {
   apps: [
     {
       name: 'unsearch-backend',
-      cwd: './',
-      script: './venv/bin/uvicorn',
+      cwd: './backend',
+      script: '../venv/bin/uvicorn',
       args: 'app.main:app --host 127.0.0.1 --port 8000 --workers 4',
       interpreter: 'none',
       env: {
-        PATH: './venv/bin:/usr/local/bin:/usr/bin:/bin',
+        PATH: '../venv/bin:/usr/local/bin:/usr/bin:/bin',
         PYTHONPATH: './',
-        // Load environment from .env file
+        // Load environment from the repo root .env file
         NODE_ENV: 'production',
       },
-      env_file: './.env',
+      env_file: '../.env',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,

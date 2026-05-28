@@ -9,7 +9,7 @@ name = "unsearch-container"
 # Build settings — image lives at repo root
 [build]
 context = ".."
-dockerfile = "../Dockerfile.cloudflare"
+dockerfile = "../backend/Dockerfile.cloudflare"
 
 # Runtime
 [runtime]

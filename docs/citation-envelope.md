@@ -57,7 +57,7 @@ Before hashing, content is normalized so re-fetching the same URL on the same da
 - **PDF:** binary bytes hashed as-is (PDFs are byte-stable per source).
 - **Plaintext / Markdown:** trailing whitespace stripped from each line; final newline ensured.
 
-The exact normalization implementation lives in `app/services/citation_store.py` (shipping Week 2). The normalized bytes are what the `snapshot_r2_key` object contains.
+The exact normalization implementation lives in `backend/app/services/citation_store.py` (shipping Week 2). The normalized bytes are what the `snapshot_r2_key` object contains.
 
 ---
 
@@ -154,17 +154,17 @@ The envelope does **not** prove:
 
 | Component | Status | Where |
 |---|---|---|
-| Envelope returned inline on `/api/v1/search` | ✏️ Shipping Week 2 | `app/api/v1/search.py:30` + `app/services/citation_store.py` (new) |
-| Envelope returned inline on `/api/v1/agent/search` | ✏️ Shipping Week 2 | `app/api/v1/agent.py:45` |
+| Envelope returned inline on `/api/v1/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/search.py:30` + `backend/app/services/citation_store.py` (new) |
+| Envelope returned inline on `/api/v1/agent/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/agent.py:45` |
 | Envelope returned inline on MCP `search` tool | ✏️ Shipping Week 3 | `workers/src/mcp/server.ts` (new) |
-| R2 snapshot store, content-addressable | ✏️ Shipping Week 2 | `app/services/citation_store.py` (new) |
+| R2 snapshot store, content-addressable | ✏️ Shipping Week 2 | `backend/app/services/citation_store.py` (new) |
 | HMAC v1 signing | ✏️ Shipping Week 2 | `app/services/citation_signer.py` (new) |
-| `POST /api/v1/verify/citation` (snapshot + live diff) | ✏️ Shipping Week 2 | `app/api/v1/verify.py` |
-| `POST /api/v1/verify/claim` (span-level grading) | ✏️ Shipping Week 2 | `app/api/v1/verify.py` |
-| `GET /api/v1/audit` per-API-key | ✏️ Shipping Week 2 | `app/api/v1/audit.py` (new) |
+| `POST /api/v1/verify/citation` (snapshot + live diff) | ✏️ Shipping Week 2 | `backend/app/api/v1/verify.py` |
+| `POST /api/v1/verify/claim` (span-level grading) | ✏️ Shipping Week 2 | `backend/app/api/v1/verify.py` |
+| `GET /api/v1/audit` per-API-key | ✏️ Shipping Week 2 | `backend/app/api/v1/audit.py` (new) |
 | Python + TypeScript SDK envelope verifiers | 📋 Week 4 | `apps/sdk-py`, `apps/sdk-ts` |
-| WACZ export endpoint | 📋 Month 3 | `app/api/v1/audit.py` |
-| BYO storage (S3 / GCS / Azure Blob) | 📋 Month 3 | `app/services/citation_store.py` |
+| WACZ export endpoint | 📋 Month 3 | `backend/app/api/v1/audit.py` |
+| BYO storage (S3 / GCS / Azure Blob) | 📋 Month 3 | `backend/app/services/citation_store.py` |
 | PKI v2 signing | 📋 Month 7+ | TBD |
 | Differential snapshot diffs | 📋 Month 7+ | TBD |
 

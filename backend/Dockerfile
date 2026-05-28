@@ -20,15 +20,16 @@ RUN useradd --create-home --shell /bin/bash app
 WORKDIR /app
 
 # Install Python dependencies
-COPY requirements.txt .
+# Build context = repo root; backend source lives under backend/.
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Download NLTK data
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
-# Copy application code
-COPY --chown=app:app app/ ./app/
+# Copy application code (host: backend/app/ → container: /app/app/)
+COPY --chown=app:app backend/app/ ./app/
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data && \

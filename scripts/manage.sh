@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REAL_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 REAL_SCRIPT_DIR="$(dirname "$REAL_SCRIPT")"
 PROJECT_DIR="$(dirname "$REAL_SCRIPT_DIR")"
+BACKEND_DIR="$PROJECT_DIR/backend"
 VENV_DIR="$PROJECT_DIR/venv"
 PID_FILE="$PROJECT_DIR/.fastapi.pid"
 LOG_DIR="$PROJECT_DIR/logs"
@@ -109,7 +110,7 @@ setup_python() {
     
     print_msg "$YELLOW" "Installing/updating dependencies..."
     pip install --upgrade pip setuptools wheel -q
-    pip install -r requirements.txt -q
+    pip install -r "$BACKEND_DIR/requirements.txt" -q
     
     # Install additional dependencies if needed
     pip install numpy fakeredis pytest-mock -q 2>/dev/null || true
@@ -190,8 +191,8 @@ start_api() {
     local mode="${1:-development}"
     
     print_header "Starting FastAPI Application ($mode)"
-    
-    cd "$PROJECT_DIR"
+
+    cd "$BACKEND_DIR"
     source "$VENV_DIR/bin/activate"
     
     # Check if already running
@@ -278,8 +279,8 @@ start_api_foreground() {
     local mode="${1:-development}"
     
     print_header "Starting FastAPI Application (foreground, $mode)"
-    
-    cd "$PROJECT_DIR"
+
+    cd "$BACKEND_DIR"
     source "$VENV_DIR/bin/activate"
     
     if [ "$mode" = "production" ]; then
@@ -428,8 +429,8 @@ run_tests() {
     local test_type="${1:-unit}"
     
     print_header "Running Tests ($test_type)"
-    
-    cd "$PROJECT_DIR"
+
+    cd "$BACKEND_DIR"
     source "$VENV_DIR/bin/activate"
     
     case "$test_type" in
@@ -455,10 +456,10 @@ run_tests() {
 # Initialize database
 init_db() {
     print_header "Initializing Database"
-    
-    cd "$PROJECT_DIR"
+
+    cd "$BACKEND_DIR"
     source "$VENV_DIR/bin/activate"
-    
+
     # Run alembic migrations
     if [ -d "alembic" ]; then
         print_msg "$YELLOW" "Running database migrations..."
