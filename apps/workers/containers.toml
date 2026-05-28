@@ -1,15 +1,17 @@
 # Cloudflare Containers config for the FastAPI origin.
 #
 # Wrangler reads this when you run `wrangler containers deploy` from
-# the workers/ directory. The Worker references the deployed container
-# via the [[services]] binding declared in wrangler.toml.
+# the apps/workers/ directory. The Worker references the deployed
+# container via the [[services]] binding declared in wrangler.toml.
 
 name = "unsearch-container"
 
-# Build settings — image lives at repo root
+# Build settings — image lives at repo root.
+# This file lives at apps/workers/containers.toml, so context = ../..
+# resolves to the repo root, and the Dockerfile is at backend/Dockerfile.cloudflare.
 [build]
-context = ".."
-dockerfile = "../backend/Dockerfile.cloudflare"
+context = "../.."
+dockerfile = "../../backend/Dockerfile.cloudflare"
 
 # Runtime
 [runtime]
@@ -52,4 +54,4 @@ ENABLE_VERIFICATION     = "true"
 #   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
 #   SEARXNG_SECRET_KEY
 #   SENTRY_DSN (optional)
-# Full list in workers/SECRETS.md
+# Full list in apps/workers/SECRETS.md

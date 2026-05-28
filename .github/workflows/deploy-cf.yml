@@ -18,24 +18,24 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: 10 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: workers/pnpm-lock.yaml }
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: apps/workers/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
-        working-directory: workers
+        working-directory: apps/workers
       - run: pnpm typecheck
-        working-directory: workers
+        working-directory: apps/workers
       - run: pnpm test
-        working-directory: workers
+        working-directory: apps/workers
       - name: Apply D1 schema
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: workers
+          workingDirectory: apps/workers
           command: d1 execute unsearch-prod --remote --file=./schema.sql
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: workers
+          workingDirectory: apps/workers
           command: deploy --env production
 
   container:
@@ -47,14 +47,14 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: 10 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: workers/pnpm-lock.yaml }
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: apps/workers/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
-        working-directory: workers
+        working-directory: apps/workers
       - name: Deploy Container
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: workers
+          workingDirectory: apps/workers
           command: containers deploy --config containers.toml
 
   web:

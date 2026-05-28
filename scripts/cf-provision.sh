@@ -6,15 +6,15 @@
 #   - `wrangler login` (interactive, runs once per machine)
 #   - $CLOUDFLARE_ACCOUNT_ID exported (or single-account on wrangler)
 #
-# Output: writes the resource IDs to workers/.cf-resources.env which is
-# then used to populate workers/wrangler.toml placeholders.
+# Output: writes the resource IDs to apps/workers/.cf-resources.env which is
+# then used to populate apps/workers/wrangler.toml placeholders.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT/workers"
+cd "$REPO_ROOT/apps/workers"
 
-ENV_FILE="$REPO_ROOT/workers/.cf-resources.env"
+ENV_FILE="$REPO_ROOT/apps/workers/.cf-resources.env"
 : > "$ENV_FILE"
 
 echo ">>> Provisioning Cloudflare resources for UnSearch"
@@ -98,14 +98,14 @@ else
 fi
 
 echo
-echo ">>> Done. Now update workers/wrangler.toml with these IDs:"
+echo ">>> Done. Now update apps/workers/wrangler.toml with these IDs:"
 cat "$ENV_FILE"
 echo
-echo ">>> Next: set secrets per environment (see workers/SECRETS.md):"
+echo ">>> Next: set secrets per environment (see apps/workers/SECRETS.md):"
 echo "    npx wrangler secret put SECRET_KEY"
 echo "    npx wrangler secret put STRIPE_SECRET_KEY"
 echo "    npx wrangler secret put STRIPE_WEBHOOK_SECRET"
 echo "    npx wrangler secret put RESEND_API_KEY"
 echo "    npx wrangler secret put GOOGLE_CLIENT_SECRET"
 echo "    npx wrangler secret put GITHUB_CLIENT_SECRET"
-echo "    (full list in workers/SECRETS.md)"
+echo "    (full list in apps/workers/SECRETS.md)"

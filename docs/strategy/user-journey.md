@@ -78,7 +78,7 @@ unsearch.dev/
 
 ### Agent-first signup path
 
-`workers/schema.sql` includes `is_agent_placeholder`, `claim_code`, and `sandbox_expires_at` columns. This enables an agent-first journey:
+`apps/workers/schema.sql` includes `is_agent_placeholder`, `claim_code`, and `sandbox_expires_at` columns. This enables an agent-first journey:
 
 1. Agent calls MCP server first (no human in the loop).
 2. MCP server returns a 7-day sandbox key + a `claim_code`.

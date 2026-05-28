@@ -4,7 +4,7 @@
 #   - Single uvicorn worker; CF Containers handle horizontal scaling.
 #   - Port 8080 (CF Containers convention).
 #   - No HEALTHCHECK directive — CF Containers probe via /health endpoint
-#     declared in container config (workers/containers.toml).
+#     declared in container config (apps/workers/containers.toml).
 #   - No NLTK download in image (heavy and slow); models lazy-load on first use.
 #   - Builds the alembic migrations into the image but does NOT auto-run them
 #     (D1 migrations run via `wrangler d1 execute`, not alembic, on this stack).

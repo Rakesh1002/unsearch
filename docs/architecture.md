@@ -4,7 +4,7 @@
 
 ## One-paragraph summary
 
-UnSearch is verifiable web retrieval for AI agents. Requests land on a **Cloudflare Workers** edge router (`workers/`), which either answers from the edge (KV cache hits, simple proxying, auth, rate-limit, MCP transport) or proxies to a **FastAPI Container** (`backend/`) for anything that needs Python's ecosystem (heavy scraping, RAG orchestration, alembic migrations, complex Stripe flows, claim verification). State lives in **D1** (relational), **KV** (hot caches), **R2** (citation snapshots + objects), and **Vectorize** (embeddings); async work runs on **Cloudflare Queues**; multi-step stateful workflows run inside **Durable Objects**. LLM inference, embeddings, and the `verify_claim` grader run on **Cloudflare Workers AI** (see [ADR-0004](./adr/0004-workers-ai-tiered-model-selection.md)). Web search aggregation is delegated to a self-hosted **SearXNG** instance (see [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md)). A **Next.js dashboard** (`apps/web/`) deployed via `@opennextjs/cloudflare` lives on the same Workers platform.
+UnSearch is verifiable web retrieval for AI agents. Requests land on a **Cloudflare Workers** edge router (`apps/workers/`), which either answers from the edge (KV cache hits, simple proxying, auth, rate-limit, MCP transport) or proxies to a **FastAPI Container** (`backend/`) for anything that needs Python's ecosystem (heavy scraping, RAG orchestration, alembic migrations, complex Stripe flows, claim verification). State lives in **D1** (relational), **KV** (hot caches), **R2** (citation snapshots + objects), and **Vectorize** (embeddings); async work runs on **Cloudflare Queues**; multi-step stateful workflows run inside **Durable Objects**. LLM inference, embeddings, and the `verify_claim` grader run on **Cloudflare Workers AI** (see [ADR-0004](./adr/0004-workers-ai-tiered-model-selection.md)). Web search aggregation is delegated to a self-hosted **SearXNG** instance (see [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md)). A **Next.js dashboard** (`apps/web/`) deployed via `@opennextjs/cloudflare` lives on the same Workers platform.
 
 ---
 
@@ -16,7 +16,7 @@ UnSearch is verifiable web retrieval for AI agents. Requests land on a **Cloudfl
                                   ▼
                     ┌─────────────────────────────────┐
                     │  Cloudflare edge (300+ PoPs)    │
-                    │  workers/src/index.ts (Hono)    │
+                    │  apps/workers/src/index.ts (Hono)    │
                     └──────┬──────────────────────────┘
                            │
             ┌──────────────┼──────────────┬──────────────────┐
@@ -49,7 +49,7 @@ UnSearch is verifiable web retrieval for AI agents. Requests land on a **Cloudfl
 ASCII diagrams elide a lot. The intended invariants:
 
 1. **Edge handles what it can.** Auth checks, rate limiting, KV-cache lookups, simple search proxying, and any endpoint with a pure-TypeScript implementation terminate at the worker. No Python round-trip.
-2. **Container handles what it must.** Heavy scraping, complex orchestrations (research pipelines, big crawls), Stripe webhook signing, alembic migrations against the long-tail of Postgres-backed features. Everything called from the worker via a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/).
+2. **Container handles what it must.** Heavy scraping, complex orchestrations (research pipelines, big crawls), Stripe webhook signing, alembic migrations against the long-tail of Postgres-backed features. Everything called from the worker via a [service binding](https://developers.cloudflare.com/apps/workers/runtime-apis/bindings/service-bindings/).
 3. **Durable Objects do stateful coordination, never request handling.** A request handler may *create* a DO instance; the DO itself runs to completion in the background and emits events via Queues / webhooks.
 4. **Queues are the boundary for "this might take seconds."** Anything that could blow the 50ms Worker CPU budget or the Container's request-timeout gets queued.
 
@@ -57,10 +57,10 @@ ASCII diagrams elide a lot. The intended invariants:
 
 ## Components
 
-### Edge worker — `workers/`
+### Edge worker — `apps/workers/`
 
 - **Stack:** TypeScript, Hono router on Cloudflare Workers.
-- **Files of interest:** `workers/src/index.ts` (router), `workers/src/routes/*.ts` (per-feature handlers), `workers/src/durable-objects/*.ts`, `workers/src/queue-consumer.ts`, `workers/src/scheduled.ts`, `workers/src/middleware/*.ts`, `workers/wrangler.toml` (bindings), `workers/schema.sql` (D1 schema), `workers/containers.toml` (Container config).
+- **Files of interest:** `apps/workers/src/index.ts` (router), `apps/workers/src/routes/*.ts` (per-feature handlers), `apps/workers/src/durable-objects/*.ts`, `apps/workers/src/queue-consumer.ts`, `apps/workers/src/scheduled.ts`, `apps/workers/src/middleware/*.ts`, `apps/workers/wrangler.toml` (bindings), `apps/workers/schema.sql` (D1 schema), `apps/workers/containers.toml` (Container config).
 - **Bindings:** `DB` (D1), `CACHE` (KV — auth/ratelimit/search cache), `BUCKET` (R2), `VECTORS` (Vectorize), `AI` (Workers AI), `QUEUE` (Cloudflare Queues), plus DO namespaces `RATE_LIMITER`, `TOPIC_MONITOR`, `RESEARCH_AGENT`, `SESSION_MANAGER`, and a service binding `BACKEND` → FastAPI Container.
 - **Per-route file map:** `agent.ts` (Tavily-compat), `auth.ts`, `billing.ts`, `knowledge.ts`, `monitor.ts`, `neural.ts`, `proxy.ts` (catch-all → Container), `rag.ts`, `search.ts`, `verify.ts`.
 
@@ -98,7 +98,7 @@ Postgres is the Container's origin database for everything that hasn't moved to 
 
 ### Monitoring — `infra/monitoring/`
 
-Prometheus + Grafana, provisioned via `infra/monitoring/docker-compose.monitoring.yml`. Dashboards in `infra/monitoring/grafana/dashboards/unsearch-overview.json`. The Container exports Prometheus metrics at `/metrics`; the worker emits the same via Workers Analytics Engine. Detailed observability runbook: [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md).
+Prometheus + Grafana, provisioned via `infra/monitoring/docker-compose.monitoring.yml`. Dashboards in `infra/monitoring/grafana/dashboards/unsearch-overview.json`. The Container exports Prometheus metrics at `/metrics`; the worker emits the same via Workers Analytics Engine. Detailed observability runbook: [`apps/workers/OBSERVABILITY.md`](../apps/workers/OBSERVABILITY.md).
 
 ---
 
@@ -106,7 +106,7 @@ Prometheus + Grafana, provisioned via `infra/monitoring/docker-compose.monitorin
 
 | State | Store | Why |
 |-------|-------|-----|
-| Users, accounts, plans | D1 (`workers/schema.sql`) — primary; Postgres mirror for the long-tail of Container-only features | Most reads happen at the edge; users + plans are the hot path |
+| Users, accounts, plans | D1 (`apps/workers/schema.sql`) — primary; Postgres mirror for the long-tail of Container-only features | Most reads happen at the edge; users + plans are the hot path |
 | API keys | D1 | Auth check is on every request; must be edge-fast |
 | Stripe subscriptions, invoices | Postgres (Container) — D1 stores only the `customer_id` / `subscription_id` projection | Stripe webhooks land at the Container; full state is too rich for D1 |
 | Rate-limit counters | KV (TTL) + DO `RateLimiter` for sliding-window | KV for absolute-limit checks; DO for per-key sliding window |
@@ -163,7 +163,7 @@ The Container reaches D1 / KV / Vectorize / Queues over **REST**, not via direct
 | Scraping throughput | 10 URLs/s per Container replica | ✅ |
 | Container cold start | <2s | ~1.5s |
 | Test coverage | >80% | ~40% (tech debt) |
-| Uptime | 99.9% | tracked via [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md) |
+| Uptime | 99.9% | tracked via [`apps/workers/OBSERVABILITY.md`](../apps/workers/OBSERVABILITY.md) |
 
 ---
 
