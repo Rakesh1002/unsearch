@@ -40,7 +40,7 @@ STRIPE_PRO_PRICE_ID=price_...  # Create in Stripe Dashboard
 
 # SearXNG Configuration
 SEARXNG_URL=http://localhost:8080  # Default if using Docker
-SEARXNG_SECRET=ultrasecretkey  # Must match searxng/settings.yml
+SEARXNG_SECRET=change-me-with-openssl-rand-hex-32  # Must match searxng/settings.yml
 
 # CORS Configuration
 ALLOWED_ORIGINS=["http://localhost:3000","https://app.unsearch.dev"]
@@ -148,7 +148,7 @@ services:
 
   searxng:
     environment:
-      - SEARXNG_SECRET=ultrasecretkey
+      - SEARXNG_SECRET=change-me-with-openssl-rand-hex-32
       - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
 ```
 
