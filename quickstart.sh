@@ -5,8 +5,8 @@
 set -e
 
 echo "======================================"
-echo "  UnSearch - Open Source AI Search"
-echo "  Tavily Alternative"
+echo "  UnSearch - Verifiable Retrieval"
+echo "  for AI Agents (Apache 2.0)"
 echo "======================================"
 echo ""
 

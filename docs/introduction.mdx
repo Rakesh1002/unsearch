@@ -1,151 +1,115 @@
 ---
 title: 'Introduction'
-description: 'Privacy-respecting search and scraping API powered by SearXNG'
+description: 'Verifiable web retrieval for AI agents. Every result signed, hashed, snapshotted, and replayable.'
 ---
 
-<img
-  className="block dark:hidden"
-  src="/images/hero-light.svg"
-  alt="UnSearch Hero Light"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/hero-dark.svg"
-  alt="UnSearch Hero Dark"
-/>
+## Welcome to UnSearch
 
-## Welcome to UnSearch API
+UnSearch is the **verifiable retrieval primitive** for AI agents. Every search result returns a signed citation envelope, a content-addressable snapshot, and a `verify_claim` endpoint that grades any claim against any source with span-level evidence. Built for legal, medical, finance, and other regulated AI teams who can't ship native LLM search past their compliance review.
 
-UnSearch is a powerful, privacy-focused web search and content scraping API that gives you complete control over your search and data extraction needs without compromising user privacy.
+Apache 2.0. MCP-native. Self-hostable on Cloudflare.
 
-## Why UnSearch?
+## The problem we solve
+
+AI agents confidently make claims tied to web sources that are wrong, dead, paraphrased, fabricated, or silently changed since the agent retrieved them. There is no widely-adopted infrastructure primitive that produces a cryptographically verifiable record of "what the agent saw, at what URL, at what time, with what hash" — so every team building agents for regulated workflows is rebuilding this primitive from scratch.
+
+The numbers as of Q1 2026:
+
+- **$145K in U.S. court sanctions in Q1 2026 alone** for AI-hallucinated legal citations
+- **Harvey AI ($8B valuation) still hallucinates 1-in-6 queries**
+- **40–60% medical RAG reference fabrication** without retrieval grounding
+- **EU AI Act Article 12 full enforcement begins August 2026** — provenance documentation required; €15M / 3% turnover penalty
+
+## Why UnSearch
 
 <CardGroup cols={2}>
   <Card
-    title="Privacy First"
-    icon="shield"
+    title="Signed citation envelope"
+    icon="fingerprint"
     color="#07C983"
   >
-    Built on SearXNG, ensuring no tracking or data collection. Your searches remain completely anonymous.
+    Every result returns `{url, sha256, fetched_at, snapshot_key, signature}`. WACZ-aligned so the broader provenance ecosystem reads it natively.
   </Card>
   <Card
-    title="Multi-Engine Search"
-    icon="magnifying-glass"
+    title="Content-addressable snapshots"
+    icon="floppy-disk"
     color="#0D9373"
   >
-    Search across Google, Bing, DuckDuckGo, and 70+ search engines with a single API call.
+    Every retrieved page is hashed and pinned to R2 — yours on self-host, ours on hosted. URL rot can't break your audit trail.
   </Card>
   <Card
-    title="Smart Scraping"
-    icon="robot"
+    title="Claim verification"
+    icon="check-double"
     color="#07C983"
   >
-    Intelligent content extraction with BeautifulSoup4, including metadata, images, and structured data.
+    POST `/verify/claim` returns span-level evidence + confidence. Re-fetches source, runs LLM-graded NLI check on top.
   </Card>
   <Card
-    title="Developer Friendly"
-    icon="code"
+    title="MCP-first distribution"
+    icon="terminal"
     color="#0D9373"
   >
-    RESTful API with comprehensive documentation, SDKs, and webhook support for seamless integration.
+    `claude mcp add unsearch` wires Claude Code, Codex CLI, Cursor, Continue.dev, Zed in one command. No signup to evaluate.
+  </Card>
+  <Card
+    title="Self-host on Cloudflare"
+    icon="lock"
+    color="#07C983"
+  >
+    `wrangler deploy` from a forked repo. Customer-controlled signing keys. Your data, your perimeter, your audit logs.
+  </Card>
+  <Card
+    title="Apache 2.0"
+    icon="scale-balanced"
+    color="#0D9373"
+  >
+    Open source from day one. 12-month written notice on any price change to existing customers.
   </Card>
 </CardGroup>
 
-## Core Features
+## For whom
 
-- **🔍 Unified Search API**: Single endpoint for searching across multiple engines
-- **📊 Content Extraction**: Automatic extraction of text, metadata, and structured data
-- **⚡ High Performance**: Async architecture with Redis caching and connection pooling
-- **🔐 Secure**: JWT authentication, API key management, and rate limiting
-- **💳 Flexible Billing**: Free tier with generous limits, Pro plan for unlimited usage
-- **🔄 Batch Processing**: Process multiple searches or scrapes in parallel
-- **🪝 Webhooks**: Real-time notifications for async operations
-- **📈 Analytics**: Detailed usage tracking and monitoring
+UnSearch is built for:
 
-## Getting Started
+- **Engineering leads at regulated-AI startups** (Series Seed–B) building vertical AI for legal, medical, finance, insurance, research, or compliance verticals.
+- **AI platform directors at established regulated companies** (banks, hospital systems, insurance carriers, BigLaw firms, pharma) retrofitting LLM features ahead of EU AI Act enforcement.
+- **Citation-integrity research and journalism engineers** snapshotting cited sources so retraction-tracking and reproducibility survive bit rot.
 
-<Steps>
-  <Step title="Create Account">
-    Sign up for a free account at [app.unsearch.dev](https://app.unsearch.dev)
-  </Step>
-  <Step title="Get API Key">
-    Generate your API key from the dashboard
-  </Step>
-  <Step title="Make Your First Request">
-    Follow our [quickstart guide](/quickstart) to make your first API call
-  </Step>
-</Steps>
+UnSearch is **not** built for indie devs building non-regulated agents — Anthropic's native `web_search` and OpenAI Codex CLI search are free and good enough for them.
 
-## Quick Example
+See the full ICP detail in [Strategy → ICP](/strategy/icp).
+
+## Get started
+
+The fastest path — no signup, no API key, Free tier built in:
 
 ```bash
-curl -X POST "https://api.unsearch.dev/api/v1/search" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "artificial intelligence",
-    "engines": ["google", "bing"],
-    "scrape_results": true,
-    "max_results": 10
-  }'
+claude mcp add unsearch
+# or, in any MCP-compatible client:
+npx @unsearch/mcp-server
 ```
 
-## SDKs & Libraries
+Then ask your agent to search and verify a claim. For SDK and REST quickstarts, see [Quickstart](/quickstart).
 
-<CodeGroup>
+```python
+from unsearch import UnSearch
 
-```python Python
-pip install unsearch-python
-
-from unsearch import UnSearchClient
-
-client = UnSearchClient(api_key="YOUR_API_KEY")
-results = client.search("artificial intelligence")
+client = UnSearch(api_key="uns_...")
+hits = client.search({"query": "EU AI Act Article 12 logging requirements"})
+verify = client.verify_claim({
+    "claim": "EU AI Act full enforcement begins August 2026",
+    "source_url": hits["results"][0]["url"],
+})
+print(verify["supported"], verify["confidence"], verify["evidence_spans"])
 ```
 
-```javascript Node.js
-npm install unsearch-js
+```ts
+import { UnSearch } from "@unsearch/sdk"
 
-import { UnSearchClient } from 'unsearch-js';
-
-const client = new UnSearchClient({ apiKey: 'YOUR_API_KEY' });
-const results = await client.search('artificial intelligence');
+const client = new UnSearch({ apiKey: process.env.UNSEARCH_API_KEY! })
+const hits = await client.search({ query: "EU AI Act Article 12 logging" })
+const verify = await client.verifyClaim({
+  claim: "EU AI Act full enforcement begins August 2026",
+  source_url: hits.results[0].url,
+})
 ```
-
-```go Go
-go get github.com/unsearch/unsearch-go
-
-import "github.com/unsearch/unsearch-go"
-
-client := unsearch.NewClient("YOUR_API_KEY")
-results, _ := client.Search("artificial intelligence")
-```
-
-</CodeGroup>
-
-## Pricing
-
-| Plan | Price | Searches | Scrapes | Rate Limit |
-|------|-------|----------|---------|------------|
-| **Free** | $0/mo | 1,000/mo | 10,000/mo | 60/min |
-| **Pro** | $20/mo | Unlimited | Unlimited | 1000/min |
-| **Enterprise** | Custom | Unlimited | Unlimited | Custom |
-
-## Need Help?
-
-<CardGroup cols={2}>
-  <Card
-    title="API Reference"
-    icon="book"
-    href="/api-reference/introduction"
-  >
-    Complete API documentation with examples
-  </Card>
-  <Card
-    title="Support"
-    icon="messages"
-    href="mailto:support@unsearch.dev"
-  >
-    Get help from our support team
-  </Card>
-</CardGroup>

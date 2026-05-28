@@ -2,6 +2,8 @@
 
 Start here. This page is the entry point for everyone who isn't sure which file to open.
 
+> **Repositioned 2026-05-28** from "open-source Tavily alternative" to "verifiable web retrieval for AI agents." See [`strategy/positioning.md`](./strategy/positioning.md) for the new one-liner and [`strategy/market.md`](./strategy/market.md) for the structural shifts that drove it. ADRs 0009–0013 capture the technical implications.
+
 ## I want to…
 
 ### …understand the product
@@ -9,7 +11,8 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 | For | Read |
 |-----|------|
 | The 30-second pitch | [`/README.md`](../README.md) (repo root) |
-| Why we built UnSearch and for whom | [`strategy/icp.md`](./strategy/icp.md) and [`strategy/positioning.md`](./strategy/positioning.md) |
+| Why we built UnSearch and the problem it solves | [`strategy/market.md`](./strategy/market.md) and [`strategy/positioning.md`](./strategy/positioning.md) |
+| Who we sell to | [`strategy/icp.md`](./strategy/icp.md) |
 | What's shipped vs. in beta vs. planned | [`feature-matrix.md`](./feature-matrix.md) |
 | Pricing rationale | [`strategy/pricing.md`](./strategy/pricing.md) |
 | Where the company is going | [`roadmap.md`](./roadmap.md) and [`strategy/mrr-plan.md`](./strategy/mrr-plan.md) |
@@ -18,10 +21,12 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 
 | For | Read |
 |-----|------|
+| 60-second MCP install (lead path) | [`/README.md`](../README.md#quick-start--mcp-first) |
 | 5-minute self-host quickstart | [`quickstart.md`](./quickstart.md) |
-| Migrate from Tavily | [`migration/from-tavily.md`](./migration/from-tavily.md) |
+| Migrate from Tavily (compatibility surface) | [`migration/from-tavily.md`](./migration/from-tavily.md) |
 | Endpoint contracts | [`API_REFERENCE.md`](./API_REFERENCE.md) (or live OpenAPI at `/docs`) |
 | Worked examples per endpoint | [`API_EXAMPLES.md`](./API_EXAMPLES.md) |
+| Citation envelope schema (the wedge primitive) | [`citation-envelope.md`](./citation-envelope.md) |
 | Which AI model runs each request | [`ai-pipeline.md`](./ai-pipeline.md) (and [`ai-quick-reference.md`](./ai-quick-reference.md) for a one-pager) |
 | Use the Python SDK | [`/apps/sdk-py/README.md`](../apps/sdk-py/README.md) |
 | Use the TypeScript SDK | [`/apps/sdk-ts/README.md`](../apps/sdk-ts/README.md) |
@@ -32,7 +37,7 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 | For | Read |
 |-----|------|
 | What's where in the repo | [`what-is-what.md`](./what-is-what.md) |
-| How the v2.0 architecture works | [`architecture.md`](./architecture.md) |
+| How the architecture works | [`architecture.md`](./architecture.md) |
 | Cloudflare-specific wiring | [`cloudflare-architecture.md`](./cloudflare-architecture.md) and [`/workers/README.md`](../workers/README.md) |
 | Why we made each major decision | [`adr/`](./adr/README.md) |
 | Repo conventions (testing, commits, naming) | [`/CONTRIBUTING.md`](../CONTRIBUTING.md) and [`/CLAUDE.md`](../CLAUDE.md) |
@@ -42,7 +47,7 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 
 | For | Read |
 |-----|------|
-| Deploy to Cloudflare | [`/workers/README.md`](../workers/README.md) and [`deployment/quick-reference.md`](./deployment/quick-reference.md) |
+| Deploy to Cloudflare (recommended) | [`/workers/README.md`](../workers/README.md) and [`deployment/quick-reference.md`](./deployment/quick-reference.md) |
 | Deploy to Railway | [`deployment/railway.md`](./deployment/railway.md) |
 | Deploy to DigitalOcean | [`deployment/digitalocean.md`](./deployment/digitalocean.md) |
 | On-call playbooks | [`operations/RUNBOOKS.md`](./operations/RUNBOOKS.md) |

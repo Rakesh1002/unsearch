@@ -33,7 +33,8 @@ unsearch/
 │   ├── operations/         ←   Runbooks. Read before on-call.
 │   ├── deployment/         ←   Per-target deploy guides (Cloudflare, Railway, DigitalOcean).
 │   ├── configuration/      ←   Env vars + Stripe webhook setup.
-│   ├── migration/          ←   Migration guides from Tavily/Exa.
+│   ├── migration/          ←   Migration guide from Tavily (compatibility surface — see ADR-0003).
+│   ├── citation-envelope.md ←   Signed envelope schema + signing. See ADR-0011.
 │   ├── API_REFERENCE.md    ←   Full endpoint catalog. Live OpenAPI at /docs.
 │   ├── API_EXAMPLES.md     ←   Worked examples per endpoint.
 │   ├── ai-pipeline.md      ←   Models, embeddings, reranking. See ADR-0004.

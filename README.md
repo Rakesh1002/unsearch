@@ -1,8 +1,8 @@
 # UnSearch
 
-> **The open-source search API for AI agents. Tavily-compatible. 10× cheaper.**
+> **Verifiable web retrieval for AI agents. Every result signed, hashed, snapshotted, and replayable months later.**
 
-Apache 2.0. Self-hostable on Cloudflare Workers + Containers. Drop-in replacement for Tavily — change one base URL, keep your existing `client.search()` calls. $49/mo on the Growth tier vs. a ~$500/mo median across closed-source competitors.
+Apache 2.0. MCP-native. Self-hostable on Cloudflare Workers + Containers. WACZ-aligned signed citation envelopes so any retrieval can be replayed in court, in an FDA submission, or in an EU AI Act Article 12 audit log months after the fact.
 
 [![Python SDK](https://img.shields.io/pypi/v/unsearch?label=pip%20install%20unsearch)](https://pypi.org/project/unsearch/)
 [![TypeScript SDK](https://img.shields.io/npm/v/@unsearch/sdk?label=npm%20%40unsearch%2Fsdk)](https://www.npmjs.com/package/@unsearch/sdk)
@@ -10,44 +10,83 @@ Apache 2.0. Self-hostable on Cloudflare Workers + Containers. Drop-in replacemen
 
 ---
 
+## The problem
+
+AI agents confidently make claims tied to web sources that are wrong, dead, paraphrased, fabricated, or — worst — silently changed since the agent retrieved them. There is no widely-adopted infrastructure primitive that produces a **cryptographically verifiable record** of "what the agent saw, at what URL, at what time, and what hash" — so every team building agents for regulated workflows is rebuilding this primitive from scratch.
+
+The numbers from 2026 so far:
+
+- **$145K in U.S. court sanctions in Q1 2026 alone** for AI-hallucinated legal citations. Single largest: **$110K** on April 4 2026 (23 fabricated citations + 8 false quotations across three filings).
+- **Harvey AI** ($8B valuation) still hallucinates **1 in 6** queries.
+- **40–60% reference fabrication rate** on biomedical questions without retrieval; even with RAG, accuracy is only 69.5%.
+- **EU AI Act Article 12** full enforcement begins **August 2026** — automatic event logging required over the system's lifetime, 6-month log retention minimum, 10-year documentation retention, **provenance documentation explicitly required**. Penalty: **€15M or 3% of worldwide turnover.**
+
+Regulated buyers cannot use Anthropic's native `web_search` or OpenAI Codex CLI search because the citations aren't customer-pinnable, the snapshots aren't reproducible, and the data leaves their perimeter. So they hand-roll: Tavily + Firecrawl + Playwright snapshots + custom NLI grader + Postgres provenance table. Five vendors and 1–2 FTEs of glue per company.
+
+**UnSearch is the missing primitive.**
+
+---
+
 ## For whom
 
 UnSearch is built for:
 
-- **AI app builders shipping production agents** who hit Tavily's $30/$100 pricing cliff or are nervous about the [Nebius acquisition](https://techcrunch.com/2025/08/06/tavily-raises-25m-to-connect-ai-agents-to-the-web/)
-- **AI-native startups** whose search bill became 30–60% of COGS on Exa or other closed vendors
-- **Cloudflare-stack teams** who want retrieval that runs on the same edge as the rest of their app
-- **Teams that need Apache 2.0** for legal/compliance review or to defuse vendor-lock-in objections
+- **Engineering leads at regulated-AI startups** (Series Seed–B, 10–80 people) building vertical AI for legal / medical / finance / insurance / research / compliance verticals
+- **AI platform directors at established regulated companies** (banks, hospital systems, insurance carriers, BigLaw firms, pharma) retrofitting LLM features ahead of EU AI Act enforcement
+- **Citation-integrity research & journalism engineers** snapshotting cited sources so retraction-tracking and reproducibility survive bit rot
 
 UnSearch is **not** for:
 
-- Anyone who wants a consumer search UI (we're an API, not a browser)
+- Indie devs building non-regulated agents — Anthropic native `web_search` and Codex CLI search are free and good enough for them
+- Anyone needing a consumer search UI (we're an API + MCP, not a browser)
 - Anyone needing internal-document search across Slack/Drive/Confluence (that's [Glean's](https://www.glean.com) job)
 - Anyone needing aggressive scraping of login-walled or anti-bot sites (we respect `robots.txt` and ToS)
-- Procurement-led enterprises that require a 6-month security review before evaluating (we'll get there — see [strategy/mrr-plan.md](./docs/strategy/mrr-plan.md))
 
-## Why UnSearch
-
-| Feature | Tavily | Exa | Brave | UnSearch |
-|---------|--------|-----|-------|----------|
-| Open source license | — | — | — | **Apache 2.0** |
-| Self-hostable | — | — | — | **Docker one-liner + CF Containers** |
-| Drop-in Tavily API | N/A | — | — | **Yes** |
-| Free tier | 1,000/mo | 1,000/mo | None (since Feb 2026) | **5,000/mo** |
-| Price for 100K searches/mo | ~$700 | ~$700 | ~$500 | **$49 (Growth)** |
-| Public 12-month price-notice commitment | — | — | — | **Yes** |
-| Cloudflare-native (Workers / D1 / Vectorize) | — | — | — | **Yes** |
-| Zero-retention mode | — | — | — | **Yes (Pro+)** |
-
-For the full feature comparison with honest ✅ / 🔶 status, see [docs/feature-matrix.md](./docs/feature-matrix.md). For the strategy + GTM story, see [docs/strategy/](./docs/strategy/README.md).
+See [`docs/strategy/icp.md`](./docs/strategy/icp.md) for the three personas in detail.
 
 ---
 
-## Quick start
+## How it works
 
-### Use the hosted API
+Every search or extract call returns a **signed citation envelope** plus a **content-addressable snapshot** in your own R2 bucket (self-host) or ours (hosted). The `verify_claim` endpoint then takes any `{claim, source_url}` pair and returns span-level evidence with a confidence score.
 
-Grab a key at [app.unsearch.dev](https://app.unsearch.dev), then:
+```json
+// citation_envelope returned with every result
+{
+  "v": 1,
+  "url": "https://example.com/article",
+  "fetched_at": "2026-05-28T18:32:11Z",
+  "content_sha256": "a3f5...",
+  "content_type": "text/html",
+  "snapshot_r2_key": "citations/a3f5.../snapshot.wacz",
+  "engine": "searxng:google",
+  "agent_run_id": "run_01HQ...",
+  "api_key_id": "key_01HK...",
+  "signature_hmac_sha256": "9d2e..."
+}
+```
+
+Envelope format is aligned with the [WACZ-Auth spec](https://github.com/webrecorder/wacz-auth-spec) so any consumer of the broader web-archival ecosystem can verify our snapshots with existing tooling. Full schema: [`docs/citation-envelope.md`](./docs/citation-envelope.md).
+
+---
+
+## Quick start — MCP-first
+
+The fastest way to evaluate UnSearch — no signup, no API key, no credit card. Free tier 5,000 verified searches / month is built into the MCP server itself:
+
+```bash
+claude mcp add unsearch
+# or, in any other MCP-compatible client:
+npx @unsearch/mcp-server
+```
+
+Then ask Claude (or any MCP-compatible agent):
+
+> Search for "Q1 2026 legal AI sanctions" and verify the claim that the single largest sanction was $110,000 against the URL you find.
+
+You'll get back signed results and a `verify_claim` response with evidence spans.
+
+### Or use the SDK
 
 ```bash
 # Python
@@ -58,9 +97,16 @@ pip install unsearch
 from unsearch import UnSearch
 
 client = UnSearch(api_key="uns_...")
-hits = client.search({"query": "Cloudflare Workers in 2026", "max_results": 10})
+hits = client.search({"query": "EU AI Act Article 12 logging requirements"})
 for r in hits["results"]:
-    print(r["rank"], r["title"], r["url"])
+    print(r["rank"], r["title"], r["citation_envelope"]["content_sha256"])
+
+# Verify a claim
+verify = client.verify_claim({
+    "claim": "EU AI Act full enforcement begins August 2026",
+    "source_url": hits["results"][0]["url"],
+})
+print(verify["supported"], verify["confidence"], verify["evidence_spans"])
 ```
 
 ```bash
@@ -72,41 +118,35 @@ pnpm add @unsearch/sdk
 import { UnSearch } from "@unsearch/sdk"
 
 const client = new UnSearch({ apiKey: process.env.UNSEARCH_API_KEY! })
-const hits = await client.search({ query: "Cloudflare Workers in 2026", max_results: 10 })
+const hits = await client.search({ query: "EU AI Act Article 12 logging" })
+const verify = await client.verifyClaim({
+  claim: "EU AI Act full enforcement begins August 2026",
+  source_url: hits.results[0].url,
+})
 ```
 
-### Self-host
+### Self-host on your own Cloudflare account
+
+For ICP-2 (regulated companies) — your data stays in your perimeter, you control the signing keys, audit logs retain up to 10 years.
 
 ```bash
 git clone https://github.com/Rakesh1002/unsearch.git
 cd unsearch
 cp .env.example .env   # fill in CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN
-docker compose up -d
+wrangler login
+wrangler containers deploy   # deploys FastAPI + SearXNG to CF Containers (GA April 2026)
+wrangler deploy              # deploys Hono edge + MCP + dashboard
 ```
 
-Local API + interactive OpenAPI docs at `http://localhost:8000/docs`. For the minimal stack (no Celery/Postgres if you only need search):
+Full self-host guide at [`docs/quickstart.md`](./docs/quickstart.md) and [`docs/deployment/`](./docs/deployment/).
+
+For a Docker-Compose stack instead (no Cloudflare account required):
 
 ```bash
+docker compose up -d
+# minimal stack (no Celery/Postgres if you only need search + verify):
 docker compose -f docker-compose.quickstart.yml up -d
 ```
-
-For the full guide — including Cloudflare Workers / Containers deployment — see [docs/quickstart.md](./docs/quickstart.md) and [docs/deployment/](./docs/deployment/).
-
-### Migrate from Tavily
-
-```python
-# Before
-from tavily import TavilyClient
-client = TavilyClient(api_key="tvly-...")
-hits = client.search("AI news")
-
-# After — same response shape, just change the import + key
-from unsearch import UnSearch
-client = UnSearch(api_key="uns_...")
-hits = client.tavily_search({"query": "AI news"})
-```
-
-Full migration guide: [docs/migration/from-tavily.md](./docs/migration/from-tavily.md).
 
 ---
 
@@ -114,92 +154,98 @@ Full migration guide: [docs/migration/from-tavily.md](./docs/migration/from-tavi
 
 ```
 unsearch/
-├── app/                    # FastAPI backend (legacy single-package layout, still authoritative)
+├── app/                    # FastAPI backend — search, extract, verify, audit
 ├── apps/
 │   ├── backend/            # FastAPI backend (monorepo layout — same code, packaged for Docker)
-│   ├── web/                # Next.js dashboard on Cloudflare Workers (via @opennextjs/cloudflare)
+│   ├── web/                # Next.js dashboard on Cloudflare Workers (@opennextjs/cloudflare)
 │   ├── sdk-ts/             # @unsearch/sdk — TypeScript SDK
 │   ├── sdk-py/             # unsearch — Python SDK (sync + async)
-│   └── sdk-llamaindex/     # @unsearch/llamaindex — LlamaIndex retriever
-├── workers/                # Cloudflare Workers edge router (Hono) + Durable Objects + D1 schema
-├── docs/                   # Architecture, API reference, strategy, roadmap, runbooks
+│   ├── sdk-llamaindex/     # @unsearch/llamaindex — LlamaIndex retriever
+│   └── mcp-server/         # @unsearch/mcp-server — MCP server (P0 Week 3)
+├── workers/                # Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema
+├── docs/                   # Architecture, API reference, strategy, ADRs, runbooks
 ├── alembic/                # Postgres migrations (origin DB)
 ├── searxng/                # SearXNG meta-search engine config
-├── monitoring/             # Prometheus + Grafana provisioning
+├── monitoring/             # Prometheus + Grafana provisioning (self-host)
 └── docker-compose*.yml     # Self-host stacks
 ```
 
-The Cloudflare-native architecture (Workers fronting a FastAPI Container, with D1 / KV / Vectorize / R2 / Queues / Durable Objects bindings) is described in [docs/cloudflare-architecture.md](./docs/cloudflare-architecture.md) and [workers/README.md](./workers/README.md).
+The architecture (Workers fronting FastAPI on Cloudflare Containers GA, with D1 / KV / Vectorize / R2 / Queues / Durable Objects + SearXNG sidecar) is documented in [`docs/cloudflare-architecture.md`](./docs/cloudflare-architecture.md). The five new ADRs that drove the 2026-05-28 reposition are at [`docs/adr/`](./docs/adr/README.md) (#0009 through #0013).
 
 ---
 
 ## Honest feature status
 
-> See [docs/feature-matrix.md](./docs/feature-matrix.md) for the full table. Tldr below.
+> See [`docs/feature-matrix.md`](./docs/feature-matrix.md) for the full table. TL;DR below.
 
 ### Shipped (production, end-to-end tested)
-- AI / web search (`/api/v1/search`, `/api/v1/agent/search`) — Tavily-compatible
+- Web search (`/api/v1/search`, `/api/v1/agent/search`) — Tavily-compatible drop-in compatibility surface
 - Neural / semantic search + auto-prompt + highlights + similar — Exa-compatible
-- Multi-engine aggregation via SearXNG (70+ engines)
+- Multi-engine aggregation via SearXNG (70+ engines, sidecar container)
 - Scraping (static, JavaScript, PDF, multi-engine), extraction, deep crawl
 - RAG with Cloudflare Vectorize + `bge-m3` embeddings + 4-tier Workers AI model selector
 - Stripe billing — checkout + portal + subscriptions
 - Cloudflare edge — Workers, Workers AI, Vectorize, Queues, Durable Objects, D1, KV, R2
 - TypeScript SDK (`@unsearch/sdk`), Python SDK (`unsearch`), LlamaIndex retriever (`@unsearch/llamaindex`)
 
+### Shipping in the 3-week rebuild (per the approved plan)
+- ✏️ Cloudflare Containers deploy (FastAPI + SearXNG sidecar) — **Week 1**
+- ✏️ Dashboard at `app.unsearch.dev`, edge at `api.unsearch.dev` — **Week 1**
+- ✏️ Signed citation envelope on every result (HMAC v1, WACZ-aligned) — **Week 2**
+- ✏️ R2 snapshot store (content-addressable, sha256-keyed) — **Week 2**
+- ✏️ `/api/v1/verify/citation` + `/api/v1/verify/claim` GA — **Week 2**
+- ✏️ `/api/v1/audit` per-API-key audit log — **Week 2**
+- ✏️ MCP server (Streamable HTTP) at `api.unsearch.dev/mcp` — **Week 3**
+- ✏️ `npx @unsearch/mcp-server` package — **Week 3**
+- ✏️ MCP registry submission + HN launch — **Week 3**
+
 ### In beta (code paths exist, hardening in flight)
 - Knowledge graph — entity extraction, relationship mapping (`/api/v1/knowledge/*`)
 - Topic monitoring + webhook alerts (`/api/v1/monitor/topics`)
-- Fact verification — claim check + source credibility (`/api/v1/verify/*`)
+- Source credibility (`/api/v1/verify/source`)
 - Deep research agent (`/api/v1/agent/research`)
 - Predictive search (`/api/v1/neural/predictive`)
 
-### On the roadmap (not yet shipped)
-- MCP server published to npm + Anthropic directory (**next P0**)
+### On the roadmap
 - Google OAuth wiring (keys in `.env.example`; flow not yet wired)
-- LangChain `langchain-community` integration PR
-- `/team` and `/settings` dashboard routes
-- Stripe metered overage billing
-- Internal-document connectors (Drive/Slack/Confluence/Notion/GitHub) — Enterprise tier only
-- SAML / OIDC SSO + audit logging — Enterprise tier
-- SOC 2 attestation
+- LangChain + Vercel AI SDK adapters
+- WACZ public-key signing (Month 7+, replacing HMAC v1)
+- BYO storage (S3 / GCS / Azure Blob) for snapshot store on self-host
+- SOC 2 Type II (Month 9), HIPAA BAA (Month 6), ISO 42001 (Month 9–12)
+- BYOC beyond Cloudflare (AWS / GCP / Azure deploy templates) — Month 10+
+- SAML / OIDC SSO + RBAC — Enterprise tier
 
 ---
 
 ## Path forward
 
-The full ordered roadmap lives in [docs/roadmap.md](./docs/roadmap.md). At a glance:
+The full ordered roadmap lives in [`docs/roadmap.md`](./docs/roadmap.md). The 3-week rebuild plan lives at `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`. At a glance:
 
-**Now → Week 1 (P0, unblocks indie devs and the Show HN launch):**
+**Week 1 — Deploy what exists + reposition**
+1. Container deploy of FastAPI + SearXNG sidecar on CF Containers GA
+2. Frontend `pnpm cf:build && pnpm cf:deploy` to `app.unsearch.dev`
+3. Hono edge to `api.unsearch.dev`
+4. Strategy docs + landing copy rewrite (this PR)
 
-1. **MCP server** (TypeScript) published to npm + Anthropic MCP directory
-2. ~~Python SDK on PyPI~~ ✅ Shipped — `pip install unsearch`
-3. Polish [docs/migration/from-tavily.md](./docs/migration/from-tavily.md) — 5-minute headline, 3-line diff, playground CTA
-4. Wire Google OAuth (keys already in `.env.example`)
-5. Homepage hero rewrite to the one-liner in [strategy/positioning.md](./docs/strategy/positioning.md)
-6. Pricing-comparison table on `/pricing` with citations + access dates
+**Week 2 — Verification wedge**
+5. R2 citation snapshot store with sha256 content addressing
+6. WACZ-aligned signed envelopes (HMAC v1)
+7. `verify/citation` + `verify/claim` endpoints GA
+8. Dashboard verify + audit views
 
-**Weeks 2–4 (P1, deepens indie-dev activation):**
+**Week 3 — MCP-first distribution + launch**
+9. Hono-hosted MCP server at `/mcp` exposing `search`, `extract`, `research`, `verify_claim`
+10. `npx @unsearch/mcp-server` package
+11. MCP registry + `awesome-mcp-servers` submission
+12. HN launch + outreach to first 10 named ICP-1 customers
 
-- LangChain `langchain-community` integration PR
-- Playground "copy as cURL / TS / Python" buttons
-- Activation-funnel instrumentation (Sentry breadcrumbs, PostHog events)
-- "What would this cost on Tavily/Exa?" callout in the dashboard
-
-**Month 2+ (P2, unlocks Seed/A CTOs):**
-
-- `/team` + `/settings` dashboard routes
-- Annual billing default at checkout
-- Self-host quickstart with `docker compose up` → parity in <30 minutes
-- Vercel AI SDK adapter
-- Stripe metered overage (schema fields exist; need Stripe metered prices wired)
-
-**Months 6–12+ (P3/P4, Enterprise):**
-
-- SAML / OIDC SSO
-- Audit logging (D1 query log replay)
-- SOC 2 attestation (Drata / Vanta / vCISO engagement)
-- Dedicated DO pool + Container replicas for Enterprise SLA tier
+**Month 2–6**
+- LangChain + Vercel AI SDK adapters
+- Self-host quickstart + `wrangler deploy` UX polish
+- WACZ export endpoint
+- BYO storage on self-host
+- SOC 2 Type I (Month 4) → Type II (Month 9)
+- First self-host v2 customer with BAA + DPA + SSO
 
 ---
 
@@ -210,10 +256,10 @@ The full ordered roadmap lives in [docs/roadmap.md](./docs/roadmap.md). At a gla
 | Python (sync + async) | [`unsearch`](https://pypi.org/project/unsearch/) | [`apps/sdk-py`](./apps/sdk-py/) |
 | TypeScript / Node / Edge | [`@unsearch/sdk`](https://www.npmjs.com/package/@unsearch/sdk) | [`apps/sdk-ts`](./apps/sdk-ts/) |
 | LlamaIndex retriever | [`@unsearch/llamaindex`](https://www.npmjs.com/package/@unsearch/llamaindex) | [`apps/sdk-llamaindex`](./apps/sdk-llamaindex/) |
-| MCP server | _coming soon (next P0)_ | — |
+| MCP server | _coming Week 3_ | [`apps/mcp-server/`](./apps/mcp-server/) |
 | LangChain | _community PR in flight_ | — |
 
-All SDKs cover the same surface — search, neural search, similar, highlights, RAG (with streaming), ingest, research agent (with polling), verify, topic monitoring, plus a `tavily_search` / `tavilySearch` drop-in.
+All SDKs cover the same surface — search, extract, research, neural search, RAG (with streaming), ingest, verify, topic monitoring, plus a `tavily_search` / `tavilySearch` drop-in.
 
 ---
 
@@ -228,36 +274,36 @@ All SDKs cover the same surface — search, neural search, similar, highlights, 
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/v1/search` | Native UnSearch search (rich filters, scraping, caching) |
-| `POST /api/v1/agent/search` | Tavily-compatible drop-in |
-| `POST /api/v1/agent/research` | Deep research agent (Durable Object, multi-step) |
+| `POST /api/v1/search` | Native UnSearch search — returns signed citation envelope per result |
+| `POST /api/v1/agent/search` | Tavily-compatible drop-in (compatibility surface) |
+| `POST /api/v1/agent/research` | Deep research agent (Durable Object, multi-step, audit-trailed) |
+| `POST /api/v1/agent/extract` | Web extraction with envelope |
+| `POST /api/v1/verify/citation` | Snapshot pin + live diff (**shipping Week 2**) |
+| `POST /api/v1/verify/claim` | Span-level claim grading via Workers AI (**shipping Week 2**) |
+| `POST /api/v1/verify/source` | 🔶 Source credibility |
+| `GET  /api/v1/audit` | Per-API-key audit log (**shipping Week 2**) |
 | `POST /api/v1/neural/search` | Exa-compatible neural search |
-| `POST /api/v1/neural/similar` | Find similar content |
-| `POST /api/v1/neural/highlights` | Extract key passages |
-| `POST /api/v1/rag/query` | RAG over your Vectorize namespace (supports SSE streaming) |
-| `POST /api/v1/rag/ingest` | Ingest documents into Vectorize |
-| `POST /api/v1/knowledge/extract` | 🔶 Entity extraction |
-| `POST /api/v1/monitor/topics` | 🔶 Topic monitoring with webhook fan-out |
-| `POST /api/v1/verify/claim` | 🔶 Fact verification |
+| `POST /api/v1/rag/query` | RAG over your Vectorize namespace (SSE streaming) |
+| `GET  /mcp` | Streamable HTTP MCP server (**shipping Week 3**) |
 
-Full reference: [docs/API_REFERENCE.md](./docs/API_REFERENCE.md). Worked examples: [docs/API_EXAMPLES.md](./docs/API_EXAMPLES.md).
+Full reference: [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md). Worked examples: [`docs/API_EXAMPLES.md`](./docs/API_EXAMPLES.md). Envelope schema: [`docs/citation-envelope.md`](./docs/citation-envelope.md).
 
 ---
 
 ## AI pipeline
 
-UnSearch routes generation, embeddings, and reranking through Cloudflare Workers AI. Pick a tier per request via the `model_tier` (RAG) or `model` (search) parameter.
+UnSearch routes generation, embeddings, reranking, and the `verify_claim` grader through Cloudflare Workers AI. Pick a tier per request.
 
 | Tier | Model | Use case |
 |------|-------|----------|
 | `fast` | `llama-3.1-8b-instruct-fast` | Cheap, low-latency answers, simple queries |
-| `balanced` | `llama-3.3-70b-instruct-fp8-fast` | Default — general-purpose answers |
+| `balanced` | `llama-3.3-70b-instruct-fp8-fast` | Default — general answers + `verify_claim` grader |
 | `reasoning` | `qwq-32b` | Multi-step reasoning, agent workflows |
 | `production` | `gpt-oss-120b` | Highest-quality enterprise traffic |
 
 Embeddings: `bge-m3` (1024 dims) into Cloudflare Vectorize.
 
-Full pipeline: [docs/ai-pipeline.md](./docs/ai-pipeline.md).
+Full pipeline: [`docs/ai-pipeline.md`](./docs/ai-pipeline.md).
 
 ---
 
@@ -270,7 +316,7 @@ CLOUDFLARE_ACCOUNT_ID="..."
 CLOUDFLARE_API_TOKEN="..."
 ```
 
-Optional infra defaults assume the `docker compose up -d` stack:
+Optional infra defaults assume the Docker Compose stack:
 
 ```bash
 SEARXNG_URL="http://searxng:8080"
@@ -278,7 +324,7 @@ REDIS_URL="redis://localhost:6379"
 DATABASE_URL="postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@localhost:5432/unsearch"
 ```
 
-Stripe billing, SMTP, OAuth, monitoring — all documented in [docs/configuration/env-variables.md](./docs/configuration/env-variables.md).
+Stripe billing, SMTP, OAuth, monitoring — all documented in [`docs/configuration/env-variables.md`](./docs/configuration/env-variables.md).
 
 ---
 
@@ -317,15 +363,17 @@ Lint, type-check, and test commands are wired into CI ([.github/workflows/](./.g
 |----------|-------------|
 | [Architecture](./docs/architecture.md) | System architecture overview |
 | [Cloudflare architecture](./docs/cloudflare-architecture.md) | Edge / Containers / D1 / Vectorize wiring |
+| [Citation envelope](./docs/citation-envelope.md) | Signed envelope schema + signing |
 | [AI pipeline](./docs/ai-pipeline.md) | Models, embeddings, reranking |
 | [API reference](./docs/API_REFERENCE.md) | Full endpoint catalog |
 | [API examples](./docs/API_EXAMPLES.md) | Worked examples per endpoint |
 | [Feature matrix](./docs/feature-matrix.md) | Honest ✅ / 🔶 / 📋 status table |
 | [Roadmap](./docs/roadmap.md) | ICP-ordered roadmap |
 | [Quickstart](./docs/quickstart.md) | Self-host guide |
-| [Migrate from Tavily](./docs/migration/from-tavily.md) | 5-minute migration guide |
+| [Migrate from Tavily](./docs/migration/from-tavily.md) | Compatibility surface |
 | [Runbooks](./docs/operations/RUNBOOKS.md) | On-call playbooks |
-| [Strategy](./docs/strategy/README.md) | ICP, GTM, pricing, positioning |
+| [Strategy](./docs/strategy/README.md) | Problem, ICP, GTM, pricing, positioning |
+| [ADRs](./docs/adr/README.md) | Architecture decision records (0001–0013) |
 | [Changelog](./CHANGELOG.md) | What shipped in each release |
 
 ---
@@ -334,9 +382,9 @@ Lint, type-check, and test commands are wired into CI ([.github/workflows/](./.g
 
 We welcome contributions — see [CONTRIBUTING.md](./CONTRIBUTING.md). Good first issues:
 
-- Add an example notebook to `docs/API_EXAMPLES.md`
+- Add an example notebook to `docs/API_EXAMPLES.md` showing `verify_claim` against a real source
 - Improve test coverage on `app/services/` (currently ~40%; target 80%)
-- Build a community integration (LangChain, Haystack, DSPy, Vercel AI SDK)
+- Build a community integration (LangGraph, Haystack, DSPy, Vercel AI SDK)
 - File issues on any 🔶 in-beta endpoint that returns surprising results — we're hardening these next
 
 ## License

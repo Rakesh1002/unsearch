@@ -1,6 +1,8 @@
 # UnSearch Feature Matrix
 
-> **Honesty policy:** "Shipped" means it's running in production with end-to-end tests. "In beta" means the code paths exist and respond, but coverage, edge cases, or polish are still being closed out. "Planned" means roadmap, not code. If you spot a discrepancy between this page and the actual repo, file an issue — we update this page on every release.
+> **Honesty policy:** "Shipped" means it's running in production with end-to-end tests. "In beta" means the code paths exist and respond, but coverage, edge cases, or polish are still being closed out. "Planned" means roadmap, not code. If you spot a discrepancy between this page and the actual repo, file an issue — we update this page on every release. See [ADR-0008](./adr/0008-honest-feature-status-policy.md).
+
+> **Reposition note (2026-05-28):** UnSearch is "verifiable web retrieval for AI agents." The matrix below leads with verifiable-retrieval features (signed envelope, snapshot store, claim verification, audit log, MCP server) and treats raw search as the substrate. Tavily/Exa/Brave comparisons remain because the migration surface still exists, but the meaningful comparison columns are Anthropic native `web_search`, Codex CLI search, and Webrecorder/WACZ.
 
 ## Legend
 - ✅ Shipped (production-ready)
@@ -11,206 +13,213 @@
 
 ---
 
-## Search Features
+## Verifiable Retrieval (the wedge)
+
+| Feature | UnSearch | Anthropic `web_search` | Codex CLI search | Tavily | Exa | Webrecorder |
+|---------|----------|------------------------|------------------|--------|-----|-------------|
+| **Signed citation envelope per result** | 🚀 (HMAC v1, WACZ-aligned) | ❌ | ❌ | ❌ | ❌ | ✅ (WACZ-Auth) |
+| **Content-addressable snapshot store** | 🚀 (R2, sha256-keyed) | ❌ | ❌ (cache is OpenAI's) | ❌ | ❌ | ✅ (WACZ packages) |
+| **Customer-controlled signing keys** | 🚀 (self-host) | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Claim verification with evidence spans** | 🚀 (`/verify/claim`) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Source-credibility scoring** | 🔶 (`/verify/source`) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Replayable audit log (per API key)** | 🚀 (`/audit`) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **10-year audit-log retention (EU AI Act Article 12)** | 🚀 (Enterprise / Self-host) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **WACZ export of any snapshot** | 📋 (Month 3) | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Differential snapshot diffs** | 📋 (Month 7+) | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## Distribution surfaces
+
+| Feature | UnSearch | Tavily | Exa | Brave | Linkup | Firecrawl |
+|---------|----------|--------|-----|-------|--------|-----------|
+| **MCP server (hosted at `api.unsearch.dev/mcp`)** | 🚀 (P0 — Week 3) | ✅ | ❌ | ✅ | ❌ | ✅ |
+| **`npx @unsearch/mcp-server` (one-command install)** | 🚀 (P0) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **`verify_claim` as a first-class MCP tool** | 🚀 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **TypeScript SDK** | ✅ (`@unsearch/sdk`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Python SDK (sync + async)** | ✅ (`unsearch` on PyPI) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **LlamaIndex retriever** | ✅ (`@unsearch/llamaindex`) | ✅ | 🔶 | ❌ | ❌ | ✅ |
+| **LangChain integration** | 📋 (community PR in flight) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Vercel AI SDK adapter** | 📋 (Month 2) | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## Search & Extraction (the substrate)
 
 | Feature | UnSearch | Tavily | Exa | Brave |
 |---------|----------|--------|-----|-------|
 | **Basic Search** | ✅ | ✅ | ✅ | ✅ |
 | **AI Answer Generation** | ✅ | ✅ | 🔶 | ✅ |
-| **Neural/Semantic Search** | ✅ | ❌ | ✅ | 🔶 |
+| **Neural / Semantic Search** | ✅ | ❌ | ✅ | 🔶 |
 | **Auto-Prompting (Query Expansion)** | ✅ | ❌ | ✅ | 🔶 |
 | **Highlights Extraction** | ✅ | ❌ | ✅ | ✅ |
 | **Similar Content Discovery** | ✅ | ❌ | ✅ | ✅ |
-| **Category Filtering** | ✅ | 🔶 | ✅ | ✅ |
-| **Date Filtering** | ✅ | ✅ | ✅ | ✅ |
-| **Domain Filtering** | ✅ | ✅ | ✅ | ✅ |
-| **Multi-Engine Aggregation** | 🚀 (via SearXNG) | ❌ | ❌ | ❌ |
-| **Predictive Search** | 🔶 | ❌ | ❌ | ❌ |
+| **Category / Date / Domain Filtering** | ✅ | 🔶 / ✅ / ✅ | ✅ / ✅ / ✅ | ✅ / ✅ / ✅ |
+| **Multi-Engine Aggregation** | 🚀 (via SearXNG, 70+ engines) | ❌ | ❌ | ❌ |
+| **JS-rendered / PDF / multi-engine scraping** | ✅ | ❌ | ❌ | ❌ |
+| **Tavily-compatible drop-in** | ✅ (`/api/v1/agent/search`) | N/A | ❌ | ❌ |
+| **Exa-compatible neural endpoints** | 🔶 | ❌ | N/A | ❌ |
 
 ---
 
-## AI / RAG Features
+## RAG / AI pipeline
 
 | Feature | UnSearch | Tavily | Exa | Brave |
 |---------|----------|--------|-----|-------|
-| **Basic Answer Generation** | ✅ | ✅ | 🔶 | ✅ |
-| **Model Selection** | ✅ (Workers AI models) | ❌ | ❌ | 🔶 |
-| **Cloudflare Workers AI (gpt-oss-120b, qwq-32b, llama-3.3-70b)** | 🚀 | ❌ | ❌ | ❌ |
+| **Workers AI tiered models (gpt-oss-120b, qwq-32b, llama-3.3-70b, llama-3.1-8b)** | 🚀 | ❌ | ❌ | ❌ |
 | **AI Reranking** | ✅ | ❌ | ✅ | 🔶 |
-| **Custom Embeddings (bge-m3)** | ✅ | ❌ | 🔶 | ❌ |
+| **Custom Embeddings (bge-m3, 1024 dims)** | ✅ | ❌ | 🔶 | ❌ |
 | **Multilingual** | ✅ | 🔶 | 🔶 | ✅ |
 | **Content Safety Filtering** | ✅ | ❌ | ❌ | ✅ |
+| **RAG over customer Vectorize namespace** | ✅ | ❌ | ❌ | ❌ |
+| **SSE streaming for RAG** | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
-## Advanced Capabilities (In Beta)
+## Knowledge graph / Topic monitoring / Deep research (expansion bait, in beta)
 
-These are functional in the codebase but still being hardened. Use in production with eyes open and please file issues.
+These are 🔶 in beta — code paths exist, hardening in flight. Not lead-message material. See [JTBD](./strategy/jtbd.md) for how they fit ICP expansion.
 
 | Feature | Status | Endpoint |
 |---------|--------|----------|
 | **Knowledge Graph — Entity Extraction** | 🔶 | `POST /api/v1/knowledge/extract` |
 | **Knowledge Graph — Relationship Mapping** | 🔶 | `GET /api/v1/knowledge/graph` |
 | **Topic Monitoring + Webhook Alerts** | 🔶 | `POST /api/v1/monitor/topics` |
-| **Fact Verification — Claim Check** | 🔶 | `POST /api/v1/verify/claim` |
-| **Fact Verification — Source Credibility** | 🔶 | `POST /api/v1/verify/source` |
+| **Source Credibility** | 🔶 | `POST /api/v1/verify/source` |
 | **Deep Research Agent** | 🔶 | `POST /api/v1/agent/research` |
 | **Predictive Search** | 🔶 | `POST /api/v1/neural/predictive` |
 
-These features differentiate UnSearch from Tavily/Exa/Brave (none of whom ship them), but they are not yet at the same maturity bar as our core search. See [CHANGELOG `[Unreleased]`](../CHANGELOG.md) for what's being closed out next.
-
----
-
-## Enterprise / Glean-Adjacent Features
-
-UnSearch is **not** a Glean competitor — Glean searches inside your company, UnSearch searches the open web. The features below are scoped narrowly:
-
-| Feature | UnSearch | Glean |
-|---------|----------|-------|
-| **Internal Document Connectors (Drive/Slack/Confluence/Notion/GitHub)** | 📋 (planned) | ✅ |
-| **Knowledge Graph over the public web** | 🔶 | ❌ (not their scope) |
-| **Enterprise SSO** | 📋 (planned, Enterprise tier) | ✅ |
-| **Team Permissions** | 📋 (planned, Enterprise tier) | ✅ |
-| **Audit Logging** | 📋 (planned, Enterprise tier) | ✅ |
-
-If you need internal-document search, [Glean](https://www.glean.com) is the right product. If you need open-web search for AI agents, that's us.
+UnSearch is **not** a Glean competitor — Glean searches inside your company, UnSearch retrieves from the open web with provenance. Internal-document connectors (Drive/Slack/Confluence/Notion/GitHub) are 📋 planned, but Enterprise-tier only, and only ship when a paying customer requires them.
 
 ---
 
 ## Infrastructure & Deployment
 
-| Feature | UnSearch | Tavily | Exa | Brave |
-|---------|----------|--------|-----|-------|
-| **Self-Hosted Option** | 🚀 (Apache 2.0) | ❌ | ❌ | ❌ |
-| **Open Source License** | 🚀 **Apache 2.0** | ❌ | ❌ | ❌ |
-| **Docker Deployment** | ✅ | ❌ | ❌ | ❌ |
-| **Edge Computing (Cloudflare Workers)** | 🚀 | ❌ | ❌ | ❌ |
-| **Global Distribution** | 🚀 (Cloudflare's 300+ PoPs) | ✅ | ✅ | ✅ |
-| **Cloudflare Vectorize** | 🚀 | ❌ | ❌ | ❌ |
-| **Cloudflare Queues** | 🚀 | ❌ | ❌ | ❌ |
-| **Durable Objects (stateful sessions)** | 🚀 | ❌ | ❌ | ❌ |
+| Feature | UnSearch | Tavily | Exa | Brave | Anthropic `web_search` |
+|---------|----------|--------|-----|-------|------------------------|
+| **Open Source License** | 🚀 **Apache 2.0** | ❌ | ❌ | ❌ | ❌ |
+| **Self-Hosted Option** | 🚀 (`wrangler deploy` from forked repo) | ❌ | ❌ | ❌ | ❌ |
+| **Self-host on customer's own Cloudflare account** | 🚀 | ❌ | ❌ | ❌ | ❌ |
+| **Cloudflare Containers (GA April 13 2026)** | 🚀 | ❌ | ❌ | ❌ | ❌ |
+| **Workers / D1 / KV / R2 / Vectorize / Queues / DOs** | 🚀 (all wired) | ❌ | ❌ | ❌ | ❌ |
+| **Docker Compose self-host** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **BYO storage (S3 / GCS) on self-host** | 📋 (Month 3) | ❌ | ❌ | ❌ | ❌ |
+| **Global Distribution** | 🚀 (CF 300+ PoPs) | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
 ## Privacy & Compliance
 
-| Feature | UnSearch | Tavily | Exa | Brave |
-|---------|----------|--------|-----|-------|
-| **Zero-Retention Mode** | 🚀 (Pro+ tiers) | ❌ | ❌ | ❌ |
-| **Data Sovereignty (self-host)** | 🚀 | ❌ | ❌ | ❌ |
-| **GDPR-Compliant** | ✅ | ✅ | ✅ | ✅ |
-| **SOC 2** | 📋 (Enterprise roadmap) | ✅ | ✅ | ❌ |
-| **HIPAA Ready** | 📋 (Enterprise roadmap) | ❌ | ❌ | ❌ |
+| Feature | UnSearch | Tavily | Exa | Brave | Anthropic `web_search` |
+|---------|----------|--------|-----|-------|------------------------|
+| **Zero-Retention Mode** | 🚀 (Pro+ tiers) | ❌ | ❌ | ❌ | N/A |
+| **Customer-Controlled Signing Keys** | 🚀 (self-host) | ❌ | ❌ | ❌ | ❌ |
+| **Data Sovereignty (self-host on customer perimeter)** | 🚀 | ❌ | ❌ | ❌ | ❌ |
+| **GDPR DPA Available** | ✅ | ✅ | ✅ | ✅ | Via Anthropic ToS |
+| **HIPAA BAA** | 📋 (Month 6) | ❌ | ❌ | ❌ | ❌ |
+| **SOC 2 Type I** | 📋 (Month 4) | ✅ | ✅ | ❌ | ✅ |
+| **SOC 2 Type II** | 📋 (Month 9) | ✅ | ✅ | ❌ | ✅ |
+| **ISO 42001** | 📋 (Month 9) | ❌ | ❌ | ❌ | ❌ |
+| **EU AI Act Article 12 logging-ready** | 🚀 (10-year retention on self-host / Enterprise) | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
-## Developer Experience
+## Pricing & commercial
 
-| Feature | UnSearch | Tavily | Exa | Brave |
-|---------|----------|--------|-----|-------|
-| **REST API** | ✅ | ✅ | ✅ | ✅ |
-| **TypeScript SDK** | ✅ (`@unsearch/sdk`) | ✅ | ✅ | ✅ |
-| **Python SDK** | ✅ (`unsearch` on PyPI) | ✅ | ✅ | ✅ |
-| **LangChain Integration** | 📋 (PR in flight) | ✅ | ✅ | ✅ |
-| **LlamaIndex Integration** | ✅ (`@unsearch/llamaindex`) | ✅ | 🔶 | ❌ |
-| **MCP Server** | 📋 (next release) | ✅ | ❌ | ✅ |
-| **Tavily API Compatibility** | 🚀 (drop-in) | N/A | ❌ | ❌ |
-| **Exa API Compatibility** | 🔶 (neural endpoints) | ❌ | N/A | ❌ |
-| **OpenAPI Docs** | ✅ | ✅ | ✅ | ✅ |
-| **Webhook Support** | 🔶 (topic monitoring) | ❌ | ❌ | ❌ |
+See [pricing](./strategy/pricing.md) for the full rationale.
+
+| Aspect | UnSearch | Tavily | Exa | Brave | Anthropic `web_search` |
+|--------|----------|--------|-----|-------|------------------------|
+| **Free Tier (verified searches/mo)** | 🚀 5,000 + 1,000 snapshots + 100 verifications | 1,000 | 1,000 | None (paid since Feb 2026) | Free at Claude usage tier |
+| **Self-Host annual contract** | 🚀 $24K v1 / $99K v2 | ❌ | ❌ | ❌ | ❌ |
+| **Median 100K-search hosted cost** | $49 (Growth — signed + verified) | ~$700 (unsigned) | ~$700 (unsigned) | ~$500 (unsigned) | Free at tier |
+| **Public 12-month price-commitment** | 🚀 | ❌ | ❌ (raised prices Mar 2026) | ❌ (killed free tier Feb 2026) | N/A (vendor model) |
 
 ---
 
-## Pricing
+## API endpoint summary
 
-See [pricing](./strategy/pricing) for the full rationale.
-
-| Aspect | UnSearch | Tavily | Exa | Brave |
-|--------|----------|--------|-----|-------|
-| **Free Tier (searches/mo)** | 🚀 5,000 | 1,000 | 1,000 | 2,000 (paid-only since Feb 2026) |
-| **Self-Host (Unlimited)** | 🚀 $0 (Apache 2.0) | ❌ | ❌ | ❌ |
-| **Median 100K-search cost (closed vendors)** | $49 (Growth) | ~$700 | ~$700 | ~$500 |
-| **Enterprise** | Contact us | Custom | Custom | Custom |
-| **Public Price-Commitment Statement** | 🚀 12-month notice on any increase | ❌ | ❌ (raised prices Mar 2026) | ❌ (killed free tier Feb 2026) |
-
-Pricing data accessed 2026-05-23: [Tavily](https://www.tavily.com/pricing), [Exa](https://exa.ai/pricing), [Brave](https://api-dashboard.search.brave.com/documentation/pricing).
-
----
-
-## API Endpoint Summary
-
-### Tavily-Compatible (Drop-in Replacement) — ✅ Shipped
+### Verifiable Retrieval (the wedge) — Shipped + in beta
 
 ```
-POST /api/v1/agent/search       # Tavily-shape search
-POST /api/v1/agent/extract      # Content extraction
-GET  /api/v1/agent/health       # Health check
+POST /api/v1/search             # ✅ Native search with signed envelope per result
+POST /api/v1/agent/search       # ✅ Tavily-compatible drop-in (compatibility surface)
+POST /api/v1/agent/extract      # ✅ Extract with envelope
+POST /api/v1/agent/research     # 🔶 Multi-step research with audit trail
+POST /api/v1/verify/citation    # 📋 (Week 2) Snapshot pin + live diff
+POST /api/v1/verify/claim       # 📋 (Week 2) Span-level claim grading
+POST /api/v1/verify/source      # 🔶 Source credibility
+GET  /api/v1/audit              # 📋 (Week 2) Per-API-key audit log
 ```
 
-### Exa-Compatible Neural Search — ✅ Shipped
+### MCP transport — P0 Week 3
 
 ```
-POST /api/v1/neural/search      # Semantic search
-POST /api/v1/neural/similar     # Similar content
-POST /api/v1/neural/highlights  # Extract highlights
-GET  /api/v1/neural/categories  # List categories
+GET  /mcp                       # 📋 (Week 3) Streamable HTTP MCP server
+                                #   Tools: search, extract, research, verify_claim
+```
+
+### Neural / Exa-compatible — Shipped
+
+```
+POST /api/v1/neural/search      # ✅ Semantic search
+POST /api/v1/neural/similar     # ✅ Similar content
+POST /api/v1/neural/highlights  # ✅ Extract highlights
+GET  /api/v1/neural/categories  # ✅ List categories
 POST /api/v1/neural/predictive  # 🔶 In beta
 ```
 
-### Knowledge Graph + Verification + Monitoring — 🔶 In Beta
+### RAG — Shipped
 
 ```
-POST /api/v1/knowledge/extract  # Entity extraction
-POST /api/v1/knowledge/search   # Knowledge search
-POST /api/v1/knowledge/people   # People search
-GET  /api/v1/knowledge/graph    # Knowledge graph
-POST /api/v1/monitor/topics     # Create topic monitor
-POST /api/v1/verify/claim       # Fact verification
-POST /api/v1/verify/source      # Source credibility
-POST /api/v1/agent/research     # Deep research agent
+POST /api/v1/rag/query          # ✅ RAG over Vectorize (SSE streaming)
+POST /api/v1/rag/ingest         # ✅ Document ingest
 ```
 
-### Internal-Document Connectors — 📋 Planned
+### Knowledge / Monitoring — In beta
 
 ```
-POST /api/v1/connectors         # (Planned for Enterprise tier)
+POST /api/v1/knowledge/extract  # 🔶 Entity extraction
+POST /api/v1/knowledge/search   # 🔶 Knowledge search
+POST /api/v1/knowledge/people   # 🔶 People search
+GET  /api/v1/knowledge/graph    # 🔶 Knowledge graph
+POST /api/v1/monitor/topics     # 🔶 Topic monitor + webhook fan-out
 ```
 
 ---
 
-## Architecture Comparison
+## Architecture
 
-### Traditional (Tavily/Exa)
+### Traditional search API (Tavily / Exa)
 ```
-User → API Gateway → Single Region → Response
+User → API Gateway → Single Region → Response (no envelope, no snapshot)
 ```
 
-### UnSearch Edge Architecture
+### UnSearch verifiable retrieval
 ```
 User → Cloudflare Edge (300+ PoPs)
          ↓
-    Edge Worker (Router / Cache / Auth)
+    Hono Worker (auth / rate-limit / KV cache / MCP transport)
          ↓
-    ┌────┴────┐
-    │ Simple  │ → Workers AI → Response
-    │ Query   │
-    └─────────┘
-    ┌────┴────┐
-    │ Complex │ → Queue → Durable Object
-    │ Research│              ↓
-    └─────────┘      Background Processing
-                            ↓
-                     Webhook / Poll
+    Service binding → Cloudflare Container (GA, active-CPU billing)
+         ├── FastAPI (search / extract / verify / audit)
+         └── SearXNG sidecar (70+ engines)
+                  ↓
+    R2: content-addressable snapshots (sha256-keyed, WACZ-aligned)
+    D1: users, API keys, plans, audit log, citation envelopes
+    KV: result cache (TTL per plan)
+    Vectorize: RAG per customer namespace
+    Workers AI: llama-3.3-70b grader for verify/claim
 ```
 
-See [Cloudflare architecture](./cloudflare-architecture.md) for the full diagram.
+See [Cloudflare architecture](./cloudflare-architecture.md) for the full diagram and [`docs/citation-envelope.md`](./citation-envelope.md) for the envelope schema.
 
 ---
 
-## Migration Guides
+## Migration / compatibility
+
+The Tavily-compatible drop-in stays as a compatibility surface (ADR-0003). New customers should lead with `verify_claim`; existing Tavily migrations are not blocked.
 
 - [Migrate from Tavily](./migration/from-tavily.md)
-- [Migrate from Exa](./migration/from-exa.md) (planned)
-- [Migrate from Brave Search API](./migration/from-brave.md) (planned)
 
 For strategy context behind these features, see [strategy docs](./strategy/README.md).

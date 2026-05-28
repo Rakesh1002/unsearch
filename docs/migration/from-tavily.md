@@ -1,8 +1,14 @@
 # Migrating from Tavily to UnSearch
 
-UnSearch is **100% compatible** with Tavily's API. Migration takes less than 5 minutes.
+> **Compatibility surface, not the lead onboarding path.** UnSearch's primary positioning is *verifiable web retrieval for AI agents* — see the [README](../../README.md) and [ADR-0009](../adr/0009-verifiable-retrieval-as-product-surface.md). This migration guide stays because we keep the Tavily-compatible endpoint `/api/v1/agent/search` working ([ADR-0003](../adr/0003-tavily-compatible-drop-in-surface.md)) for customers continuing with the Tavily-shape API. If you are evaluating UnSearch fresh in 2026, **start with the MCP install + `verify_claim` quickstart** in the [README](../../README.md#quick-start--mcp-first), not this page.
 
-## Why Migrate?
+UnSearch is **API-compatible** with Tavily's search and extract shape. Existing Tavily integrations migrate in less than 5 minutes by changing one base URL and one client constructor.
+
+## Why migrate (beyond price)
+
+The cost story below is true but no longer the lead reason to switch. The lead reason in 2026 is that **Tavily was acquired by Nebius (Feb 2026)** and there is no open-source successor — every Tavily customer faces vendor-roadmap uncertainty and lock-in. UnSearch is Apache 2.0, MCP-native, self-hostable on Cloudflare, and ships a signed citation envelope on every result that Tavily does not.
+
+## Cost comparison (for reference)
 
 | Feature | Tavily | UnSearch | Benefit |
 |---------|--------|----------|---------|
@@ -38,7 +44,7 @@ UnSearch is **100% compatible** with Tavily's API. Migration takes less than 5 m
 npm uninstall @tavily/core
 
 # Install UnSearch
-npm install unsearch
+pnpm add @unsearch/sdk
 ```
 
 #### Python
@@ -57,10 +63,10 @@ pip install unsearch
 
 ```diff
 - import { TavilyClient } from '@tavily/core';
-+ import { UnSearchClient } from 'unsearch';
++ import { UnSearch } from '@unsearch/sdk';
 
 - const client = new TavilyClient({
-+ const client = new UnSearchClient({
++ const client = new UnSearch({
 -   apiKey: process.env.TAVILY_API_KEY
 +   apiKey: process.env.UNSEARCH_API_KEY
   });

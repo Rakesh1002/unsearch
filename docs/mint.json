@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "UnSearch API",
+  "name": "UnSearch — Verifiable Retrieval",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
@@ -25,22 +25,11 @@
     "name": "Dashboard",
     "url": "https://app.unsearch.dev"
   },
-  "tabs": [
-    {
-      "name": "API Reference",
-      "url": "api-reference"
-    }
-  ],
   "anchors": [
-    {
-      "name": "Documentation",
-      "icon": "book-open-cover",
-      "url": "https://docs.unsearch.dev"
-    },
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/unsearch/api"
+      "url": "https://github.com/Rakesh1002/unsearch"
     },
     {
       "name": "Status",
@@ -54,9 +43,17 @@
       "pages": [
         "introduction",
         "quickstart",
-        "authentication",
-        "rate-limits",
-        "errors"
+        "citation-envelope"
+      ]
+    },
+    {
+      "group": "Architecture",
+      "pages": [
+        "architecture",
+        "cloudflare-architecture",
+        "ai-pipeline",
+        "feature-matrix",
+        "roadmap"
       ]
     },
     {
@@ -76,53 +73,50 @@
       ]
     },
     {
-      "group": "Core Features",
+      "group": "ADRs",
       "pages": [
-        "features/search",
-        "features/scraping",
-        "features/batch-processing",
-        "features/webhooks"
+        "adr/README",
+        "adr/0001-cloudflare-native-edge-architecture",
+        "adr/0002-searxng-as-meta-search-aggregator",
+        "adr/0003-tavily-compatible-drop-in-surface",
+        "adr/0004-workers-ai-tiered-model-selection",
+        "adr/0005-apache-2-license-self-hostable-from-day-one",
+        "adr/0006-monorepo-with-apps-and-workers",
+        "adr/0007-python-sdk-sync-and-async",
+        "adr/0008-honest-feature-status-policy",
+        "adr/0009-verifiable-retrieval-as-product-surface",
+        "adr/0010-cloudflare-containers-as-origin-runtime",
+        "adr/0011-wacz-aligned-signed-envelope",
+        "adr/0012-mcp-first-distribution",
+        "adr/0013-icp-shift-to-regulated-ai"
       ]
     },
     {
-      "group": "API Documentation",
+      "group": "Operations",
       "pages": [
-        "api-reference/introduction"
+        "operations/RUNBOOKS",
+        "SECRETS_MANAGEMENT",
+        "BILLING_SETUP"
       ]
     },
     {
-      "group": "Authentication",
+      "group": "Deployment",
       "pages": [
-        "api-reference/auth/register",
-        "api-reference/auth/login",
-        "api-reference/auth/refresh",
-        "api-reference/auth/me",
-        "api-reference/auth/api-keys"
+        "deployment/README",
+        "deployment/quick-reference",
+        "deployment/railway",
+        "deployment/digitalocean"
       ]
     },
     {
-      "group": "Search & Scraping",
+      "group": "Migration",
       "pages": [
-        "api-reference/search/search",
-        "api-reference/search/batch",
-        "api-reference/search/engines",
-        "api-reference/search/scrape"
-      ]
-    },
-    {
-      "group": "Billing",
-      "pages": [
-        "api-reference/billing/plans",
-        "api-reference/billing/subscription",
-        "api-reference/billing/usage",
-        "api-reference/billing/portal"
+        "migration/from-tavily"
       ]
     }
   ],
   "footerSocials": {
-    "twitter": "https://twitter.com/unsearch",
-    "github": "https://github.com/unsearch",
-    "linkedin": "https://www.linkedin.com/company/unsearch"
+    "github": "https://github.com/Rakesh1002/unsearch"
   },
   "api": {
     "baseUrl": "https://api.unsearch.dev",
