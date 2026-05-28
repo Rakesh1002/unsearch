@@ -1,4 +1,4 @@
-# UnQuest Platform - Complete Implementation Summary
+# UnSearch Platform - Complete Implementation Summary
 
 ## ✅ What Has Been Implemented
 
@@ -343,7 +343,7 @@ The UnSearch platform is now a **production-ready monorepo** with:
 
 - **Documentation**: See `docs/` directory
 - **Issues**: Create GitHub issues
-- **Email**: support@unsearch.io
+- **Email**: support@unsearch.dev
 
 ---
 

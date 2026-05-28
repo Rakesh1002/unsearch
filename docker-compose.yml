@@ -8,7 +8,7 @@ services:
       - ENVIRONMENT=production
       - SEARXNG_URL=http://searxng:8080
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - DATABASE_URL=postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@postgres:5432/unsearch
       - API_KEYS=${API_KEYS:-}
       - LOG_LEVEL=INFO
       - WORKERS=4
@@ -38,7 +38,7 @@ services:
       - "8080:8080"
     environment:
       - SEARXNG_BASE_URL=http://searxng:8080/
-      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-ultrasecretkey}
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-changeme}
     volumes:
       - ./searxng:/etc/searxng:rw
     networks:
@@ -82,7 +82,7 @@ services:
     environment:
       POSTGRES_DB: unsearch
       POSTGRES_USER: unsearch
-      POSTGRES_PASSWORD: unsearch123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -102,7 +102,7 @@ services:
     environment:
       - SEARXNG_URL=http://searxng:8080
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - DATABASE_URL=postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@postgres:5432/unsearch
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
@@ -121,7 +121,7 @@ services:
     command: celery -A app.workers.tasks beat --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - DATABASE_URL=postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@postgres:5432/unsearch
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:

@@ -123,8 +123,8 @@ app = FastAPI(
     description="Open-source AI search API for agents. Tavily-compatible endpoints with self-hosting, zero-retention mode, and 70+ search engines. Drop-in replacement for Tavily at 50% lower cost.",
     contact={
         "name": "UnSearch API",
-        "url": "https://github.com/UnSearch/api",
-        "email": "support@UnSearch.io"
+        "url": "https://github.com/Rakesh1002/unsearch",
+        "email": "support@unsearch.dev"
     },
     license_info={
         "name": "AGPL-3.0",

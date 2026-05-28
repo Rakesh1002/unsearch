@@ -96,7 +96,7 @@ jobs:
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: UnSearch_test
+          POSTGRES_DB: unsearch_test
         ports:
           - 5432:5432
         options: >-
@@ -133,7 +133,7 @@ jobs:
 
       - name: Run unit tests with coverage
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/UnSearch_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/unsearch_test
           REDIS_URL: redis://localhost:6379
           TEST_MODE: "true"
         run: |
@@ -165,7 +165,7 @@ jobs:
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: UnSearch_test
+          POSTGRES_DB: unsearch_test
         ports:
           - 5432:5432
         options: >-
@@ -213,7 +213,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/UnSearch_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/unsearch_test
           REDIS_URL: redis://localhost:6379
           SEARXNG_URL: http://localhost:8080
           TEST_MODE: "true"
@@ -314,7 +314,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
-      url: https://staging.UnSearch-api.com
+      url: https://staging-api.unsearch.dev
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -328,7 +328,7 @@ jobs:
           echo "$STAGING_KEY" > deploy_key
           chmod 600 deploy_key
           ssh -i deploy_key -o StrictHostKeyChecking=no $STAGING_USER@$STAGING_HOST << 'EOF'
-            cd /opt/UnSearch-api
+            cd /opt/unsearch-api
             git pull origin develop
             docker compose -f docker-compose.staging.yml pull
             docker compose -f docker-compose.staging.yml up -d
@@ -338,12 +338,12 @@ jobs:
       - name: Health check
         run: |
           sleep 30
-          curl -f https://staging.UnSearch-api.com/health || exit 1
+          curl -f https://staging-api.unsearch.dev/health || exit 1
 
       - name: Run smoke tests
         run: |
           pip install pytest httpx
-          pytest tests/smoke/ -v --base-url=https://staging.UnSearch-api.com
+          pytest tests/smoke/ -v --base-url=https://staging-api.unsearch.dev
 
   # ========================================
   # Deploy to Production
@@ -355,7 +355,7 @@ jobs:
     if: github.event_name == 'release'
     environment:
       name: production
-      url: https://api.UnSearch.com
+      url: https://api.unsearch.dev
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -373,7 +373,7 @@ jobs:
           for host in $(echo $PROD_HOSTS | tr ',' ' '); do
             echo "Deploying to $host..."
             ssh -i deploy_key -o StrictHostKeyChecking=no $PROD_USER@$host << 'EOF'
-              cd /opt/UnSearch-api
+              cd /opt/unsearch-api
               git fetch --tags
               git checkout ${{ github.event.release.tag_name }}
               docker compose -f docker-compose.prod.yml pull
@@ -385,7 +385,7 @@ jobs:
       - name: Health checks
         run: |
           sleep 30
-          curl -f https://api.UnSearch.com/health || exit 1
+          curl -f https://api.unsearch.dev/health || exit 1
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3

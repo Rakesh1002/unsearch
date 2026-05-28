@@ -1,4 +1,4 @@
-# Backend (UnQuest API)
+# Backend (UnSearch API)
 
 ## Local quick start
 

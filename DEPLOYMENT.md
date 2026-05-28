@@ -67,7 +67,7 @@ Create `docker-compose.prod.yml`:
 version: "3.8"
 services:
   api:
-    image: UnSearch/api:latest
+    image: ghcr.io/rakesh1002/unsearch:latest
     environment:
       - ENVIRONMENT=production
       - DEBUG=false
@@ -84,7 +84,7 @@ services:
       - searxng
 
   worker:
-    image: UnSearch/api:latest
+    image: ghcr.io/rakesh1002/unsearch:latest
     command: celery -A app.workers.tasks worker --loglevel=info
     environment:
       - ENVIRONMENT=production
@@ -96,7 +96,7 @@ services:
       - redis
 
   flower:
-    image: UnSearch/api:latest
+    image: ghcr.io/rakesh1002/unsearch:latest
     command: celery -A app.workers.tasks flower
     ports:
       - "5555:5555"
@@ -217,7 +217,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: UnSearch/api:latest
+          image: ghcr.io/rakesh1002/unsearch:latest
           ports:
             - containerPort: 8000
           env:
@@ -283,10 +283,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - api.UnSearch.com
+        - api.unsearch.dev
       secretName: UnSearch-tls
   rules:
-    - host: api.UnSearch.com
+    - host: api.unsearch.dev
       http:
         paths:
           - path: /
@@ -386,7 +386,7 @@ az group create --name UnSearch-rg --location eastus
 az container create \
   --resource-group UnSearch-rg \
   --name UnSearch-api \
-  --image UnSearch/api:latest \
+  --image ghcr.io/rakesh1002/unsearch:latest \
   --dns-name-label UnSearch-api \
   --ports 8000 \
   --environment-variables 'ENVIRONMENT'='production' \
@@ -439,7 +439,7 @@ For production, always use HTTPS:
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name api.UnSearch.com;
+    server_name api.unsearch.dev;
 
     ssl_certificate /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;
@@ -465,7 +465,7 @@ server {
 sudo apt-get install certbot python3-certbot-nginx
 
 # Get certificate
-sudo certbot --nginx -d api.UnSearch.com
+sudo certbot --nginx -d api.unsearch.dev
 
 # Auto-renewal
 sudo crontab -e
@@ -482,7 +482,7 @@ Configure Prometheus to scrape metrics:
 scrape_configs:
   - job_name: "UnSearch-api"
     static_configs:
-      - targets: ["api.UnSearch.com:8000"]
+      - targets: ["api.unsearch.dev:8000"]
     metrics_path: "/metrics"
     scrape_interval: 15s
 ```
@@ -543,8 +543,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Build Docker image
         run: |
-          docker build -t UnSearch/api:${{ github.sha }} .
-          docker tag UnSearch/api:${{ github.sha }} UnSearch/api:latest
+          docker build -t ghcr.io/rakesh1002/unsearch:${{ github.sha }} .
+          docker tag ghcr.io/rakesh1002/unsearch:${{ github.sha }} ghcr.io/rakesh1002/unsearch:latest
       - name: Deploy to production
         run: |
           # Your deployment commands here
@@ -600,7 +600,7 @@ Use the built-in monitoring script:
 ./scripts/monitor.sh
 
 # Continuous monitoring
-./scripts/monitor.sh http://api.UnSearch.com 30 monitor
+./scripts/monitor.sh http://api.unsearch.dev 30 monitor
 ```
 
 ## 📞 Support

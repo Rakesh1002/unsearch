@@ -245,7 +245,7 @@ async def get_authenticated_user(
         
         # Build claim URL
         claim_code = getattr(user, 'claim_code', None)
-        frontend_url = settings.frontend_url or "https://unsearch.ai"
+        frontend_url = settings.frontend_url or "https://unsearch.dev"
         claim_url = f"{frontend_url}/claim/{claim_code}" if claim_code else None
         
         return AuthenticatedUser(

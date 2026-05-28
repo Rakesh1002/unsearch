@@ -1,10 +1,7 @@
 [project]
-name = "unquest-backend"
+name = "unsearch-backend"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "Rakesh1002",email = "rakeshroushan@Live.com"}
-]
+description = "UnSearch backend API"
 readme = "README.md"
 requires-python = ">=3.13,<4.0"
 dependencies = [

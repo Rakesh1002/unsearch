@@ -18,7 +18,7 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "unsearch_searxng_secret_key_2026_change_in_prod"
+  secret_key: "change-me-set-SEARXNG_SECRET_KEY-env-var"
   base_url: false
   image_proxy: true
   limiter: false

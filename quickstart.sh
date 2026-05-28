@@ -1,6 +1,6 @@
 #!/bin/bash
 # UnSearch Quick Start Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/unsearch/unsearch/main/quickstart.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Rakesh1002/unsearch/main/quickstart.sh | bash
 
 set -e
 
@@ -42,7 +42,7 @@ cd "$INSTALL_DIR"
 
 # Download docker-compose file
 echo -e "${BLUE}Downloading configuration...${NC}"
-curl -fsSL https://raw.githubusercontent.com/unsearch/unsearch/main/docker-compose.quickstart.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/Rakesh1002/unsearch/main/docker-compose.quickstart.yml -o docker-compose.yml
 
 # Generate API key if not provided
 if [ -z "$UNSEARCH_API_KEY" ]; then

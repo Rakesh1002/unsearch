@@ -60,7 +60,7 @@ JWT_SECRET_KEY=<generate-with-openssl-rand-hex-32>
 # Basic Configuration
 ENVIRONMENT=production
 DEBUG=false
-APP_NAME=UnQuest API
+APP_NAME=UnSearch API
 VERSION=1.0.0
 API_PREFIX=/api/v1
 
@@ -206,7 +206,7 @@ vercel
 # - Set up and deploy? Yes
 # - Which scope? Your account
 # - Link to existing project? No
-# - Project name? unquest-web
+# - Project name? unsearch-web
 # - Directory? ./apps/web
 # - Override settings? No
 
@@ -463,6 +463,6 @@ vercel rollback     # Rollback deployment
 
 - **Railway**: https://docs.railway.app
 - **Vercel**: https://vercel.com/docs
-- **Discord Community**: https://discord.gg/unquest
-- **GitHub Issues**: https://github.com/unquest/api/issues
-- **Email Support**: support@unsearch.io
+- **Discord Community**: https://discord.gg/unsearch
+- **GitHub Issues**: https://github.com/unsearch/api/issues
+- **Email Support**: support@unsearch.dev

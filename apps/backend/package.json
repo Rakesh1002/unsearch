@@ -1,7 +1,7 @@
 {
-  "name": "@unquest/backend",
+  "name": "@unsearch/backend",
   "version": "1.0.0",
-  "description": "UnQuest API Backend - FastAPI application",
+  "description": "UnSearch API Backend - FastAPI application",
   "private": true,
   "scripts": {
     "dev": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",

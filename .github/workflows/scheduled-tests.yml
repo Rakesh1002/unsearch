@@ -30,9 +30,9 @@ jobs:
         id: set-url
         run: |
           if [ "${{ matrix.environment }}" == "production" ]; then
-            echo "url=https://api.UnSearch.com" >> $GITHUB_OUTPUT
+            echo "url=https://api.unsearch.dev" >> $GITHUB_OUTPUT
           else
-            echo "url=https://staging.UnSearch-api.com" >> $GITHUB_OUTPUT
+            echo "url=https://staging-api.unsearch.dev" >> $GITHUB_OUTPUT
           fi
 
       - name: Check API health
@@ -133,7 +133,7 @@ jobs:
             });
             
             const response = http.post(
-              'https://staging.UnSearch-api.com/api/v1/search',
+              'https://staging-api.unsearch.dev/api/v1/search',
               payload,
               params
             );
@@ -166,10 +166,10 @@ jobs:
       - name: Check all endpoints
         run: |
           endpoints=(
-            "https://staging.UnSearch-api.com/health"
-            "https://staging.UnSearch-api.com/docs"
-            "https://staging.UnSearch-api.com/metrics"
-            "https://api.UnSearch.com/health"
+            "https://staging-api.unsearch.dev/health"
+            "https://staging-api.unsearch.dev/docs"
+            "https://staging-api.unsearch.dev/metrics"
+            "https://api.unsearch.dev/health"
           )
           
           failed=0
