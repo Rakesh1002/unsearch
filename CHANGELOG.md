@@ -1,5 +1,37 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+
+- **Architecture Decision Records.** New [`docs/adr/`](./docs/adr/README.md)
+  directory captures the eight non-obvious decisions that shaped the
+  product: Cloudflare-native edge, SearXNG aggregation, Tavily-compat
+  surface, Workers AI tiered models, Apache 2.0 + self-hostable,
+  monorepo layout, Python SDK sync+async, honest feature-status policy.
+- **`docs/README.md`** is the new doc entry point — task-oriented
+  ("I want to…") rather than alphabetical.
+- **`docs/what-is-what.md`** maps every top-level directory and the
+  meaning of recurring terms (DO, KV, D1, tier, namespace, etc.).
+- **`docs/architecture.md`** rewritten to reflect the v2.0 Cloudflare-
+  native architecture; old "58 endpoints / 27,500 LOC" snapshot replaced
+  with accurate per-layer detail, data-model table, and end-to-end
+  request-lifecycle examples.
+- **Root docs collapsed into `docs/`.** Deleted seven stale or
+  duplicate root-level markdown files (`DEPLOYMENT.md`,
+  `DEPLOYMENT_GUIDE.md`, `DOCKER-COMPOSE-README.md`,
+  `ENV_VARIABLES.md`, `IMPLEMENTATION_SUMMARY.md`,
+  `stripe_webhook_setup.md`, `webhook_events_explained.md`). The
+  canonical versions live under `docs/configuration/`, `docs/deployment/`,
+  and the new `docs/README.md` index.
+
+### Added
+
+- **Python SDK** (`pip install unsearch`) shipping as `apps/sdk-py/`.
+  Sync + async clients, full Tavily-compat drop-in, SSE streaming,
+  TypedDict types, py.typed marker. CI matrix across Python 3.9–3.13.
+  See [ADR-0007](./docs/adr/0007-python-sdk-sync-and-async.md).
+
 ## [Unreleased] — Cloudflare-native release
 
 Big-bang rewrite from a self-hosted FastAPI/Postgres/Redis/Celery stack

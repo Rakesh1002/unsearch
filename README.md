@@ -278,7 +278,7 @@ REDIS_URL="redis://localhost:6379"
 DATABASE_URL="postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@localhost:5432/unsearch"
 ```
 
-Stripe billing, SMTP, OAuth, monitoring — all documented in [docs/configuration/env-variables.md](./docs/configuration/env-variables.md) and [ENV_VARIABLES.md](./ENV_VARIABLES.md).
+Stripe billing, SMTP, OAuth, monitoring — all documented in [docs/configuration/env-variables.md](./docs/configuration/env-variables.md).
 
 ---
 

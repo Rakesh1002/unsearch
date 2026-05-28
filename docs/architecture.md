@@ -1,378 +1,189 @@
-# UnSearch Backend Architecture
+# Architecture
 
-## Executive Summary
+> **Scope:** This document describes the v2.0 Cloudflare-native architecture currently running in production. For the per-decision rationale behind each piece, see the [ADRs](./adr/README.md). For the directory-by-directory component map, see [what-is-what.md](./what-is-what.md). For the historic v1 (FastAPI-only) architecture, see git history before [`376f886`](https://github.com/Rakesh1002/unsearch/commit/376f886).
 
-UnSearch is an enterprise-grade AI search platform with **58 API endpoints**, **27,500+ lines of service code**, and comprehensive AI integration via Cloudflare Workers AI. The platform provides Tavily-compatible APIs plus advanced features not available in competitors.
+## One-paragraph summary
+
+UnSearch is a search API for AI agents. Requests land on a **Cloudflare Workers** edge router (`workers/`), which either answers from the edge (KV cache hits, simple proxying, auth, rate-limit) or proxies to a **FastAPI Container** (`app/` and `apps/backend/`) for anything that needs Python's ecosystem (heavy scraping, RAG orchestration, alembic migrations, complex Stripe flows). State lives in **D1** (relational), **KV** (hot caches), **R2** (objects), and **Vectorize** (embeddings); async work runs on **Cloudflare Queues**; multi-step stateful workflows run inside **Durable Objects**. LLM inference and embeddings run on **Cloudflare Workers AI** (see [ADR-0004](./adr/0004-workers-ai-tiered-model-selection.md)). Web search aggregation is delegated to a self-hosted **SearXNG** instance (see [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md)). A **Next.js dashboard** (`apps/web/`) deployed via `@opennextjs/cloudflare` lives on the same Workers platform.
 
 ---
 
-## System Architecture
+## Request-flow diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              UNSEARCH PLATFORM                                       │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                      │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
-│  │                           API LAYER (FastAPI)                                │   │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │   │
-│  │  │  Agent  │ │ Search  │ │   RAG   │ │Enhanced │ │Advanced │ │  Auth   │  │   │
-│  │  │   API   │ │   API   │ │   API   │ │   API   │ │  v2 API │ │ Billing │  │   │
-│  │  │ (5 eps) │ │ (4 eps) │ │ (8 eps) │ │ (7 eps) │ │(14 eps) │ │(10 eps) │  │   │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────────────┘   │
-│                                        │                                            │
-│  ┌─────────────────────────────────────┴──────────────────────────────────────┐   │
-│  │                          SERVICE LAYER                                      │   │
-│  │                                                                             │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │   │
-│  │  │      AI      │  │   Scraping   │  │  Extraction  │  │   Crawling   │   │   │
-│  │  │  (3 files)   │  │  (9 files)   │  │  (9 files)   │  │  (8 files)   │   │   │
-│  │  │  1,368 LOC   │  │  4,676 LOC   │  │  5,000+ LOC  │  │  4,500+ LOC  │   │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │   │
-│  │                                                                             │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │   │
-│  │  │     Core     │  │    Search    │  │     RAG      │  │Infrastructure│   │   │
-│  │  │  (6 files)   │  │  (2 files)   │  │  (2 files)   │  │  (8 files)   │   │   │
-│  │  │  2,100+ LOC  │  │  390+ LOC    │  │  891 LOC     │  │  4,300+ LOC  │   │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │   │
-│  │                                                                             │   │
-│  │  ┌──────────────┐                                                          │   │
-│  │  │  Automation  │                                                          │   │
-│  │  │  (5 files)   │                                                          │   │
-│  │  │  2,900+ LOC  │                                                          │   │
-│  │  └──────────────┘                                                          │   │
-│  └────────────────────────────────────────────────────────────────────────────┘   │
-│                                        │                                            │
-│  ┌─────────────────────────────────────┴──────────────────────────────────────┐   │
-│  │                       EXTERNAL SERVICES                                     │   │
-│  │                                                                             │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────────┐   │   │
-│  │  │ SearXNG  │  │  Redis   │  │PostgreSQL│  │   Cloudflare Workers AI  │   │   │
-│  │  │70+ search│  │ Caching  │  │ Storage  │  │  gpt-oss-120b, qwq-32b   │   │   │
-│  │  │ engines  │  │ Sessions │  │  Users   │  │  llama, bge-m3, guard    │   │   │
-│  │  └──────────┘  └──────────┘  └──────────┘  └──────────────────────────┘   │   │
-│  └────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                      │
-└─────────────────────────────────────────────────────────────────────────────────────┘
+                                Caller
+                                  │
+                                  ▼
+                    ┌─────────────────────────────────┐
+                    │  Cloudflare edge (300+ PoPs)    │
+                    │  workers/src/index.ts (Hono)    │
+                    └──────┬──────────────────────────┘
+                           │
+            ┌──────────────┼──────────────┬──────────────────┐
+            ▼              ▼              ▼                  ▼
+       ┌────────┐    ┌──────────┐   ┌──────────┐      ┌──────────────┐
+       │  KV    │    │ Workers  │   │ Durable  │      │ Service      │
+       │ cache  │    │ AI       │   │ Objects  │      │ binding →    │
+       │ hit    │    │ (LLM)    │   │ (Rate-   │      │ FastAPI      │
+       │  →     │    │   ↓      │   │ Limiter, │      │ Container    │
+       │ return │    │ Vector-  │   │ Topic-   │      │ (apps/       │
+       └────────┘    │ ize / D1 │   │ Monitor, │      │  backend/)   │
+                     └──────────┘   │ Research-│      └──────┬───────┘
+                                    │ Agent,   │             │
+                                    │ Session) │             ▼
+                                    └──────────┘    ┌─────────────────┐
+                                                    │ SearXNG (70+    │
+                                                    │ engines)        │
+                                                    │ Postgres origin │
+                                                    │ Redis (legacy)  │
+                                                    │ Stripe webhooks │
+                                                    └─────────────────┘
+                                                              ▲
+                                                              │
+                                                    Async via Queues
+                                                    (research fan-out,
+                                                     monitor checks,
+                                                     batch crawls)
 ```
 
----
+ASCII diagrams elide a lot. The intended invariants:
 
-## API Endpoints (58 Total)
-
-### Agent API (Tavily-Compatible) - 5 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/agent/search` | POST | ✅ Working | AI search with model selection |
-| `/api/v1/agent/extract` | POST | ✅ Working | Content extraction |
-| `/api/v1/agent/research` | POST | ✅ Working | Deep research (exclusive) |
-| `/api/v1/agent/models` | GET | ✅ Working | List AI models |
-| `/api/v1/agent/health` | GET | ✅ Working | Health check |
-
-### Search API - 4 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/search/` | GET/POST | ✅ Working | Basic search |
-| `/api/v1/search/batch` | POST | ✅ Working | Batch search |
-| `/api/v1/search/engines` | GET | ✅ Working | List engines |
-| `/api/v1/search/health` | GET | ✅ Working | Health check |
-
-### RAG API - 8 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/rag/search` | POST | ✅ Working | RAG search |
-| `/api/v1/rag/research` | POST | ✅ Working | Research mode |
-| `/api/v1/rag/semantic-search` | POST | ✅ Working | Semantic search |
-| `/api/v1/rag/corpus` | POST/GET | ✅ Working | Corpus management |
-| `/api/v1/rag/corpus/{id}` | DELETE | ✅ Working | Delete corpus |
-| `/api/v1/rag/corpus/{id}/info` | GET | ✅ Working | Corpus info |
-| `/api/v1/rag/generate-queries` | POST | ✅ Working | Query generation |
-| `/api/v1/rag/images` | POST | ✅ Working | Image search |
-
-### Enhanced API - 7 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/enhanced/scrape` | POST | ✅ Working | Enhanced scraping |
-| `/api/v1/enhanced/search` | POST | ✅ Working | Enhanced search |
-| `/api/v1/enhanced/chunk-content` | POST | ✅ Working | Content chunking |
-| `/api/v1/enhanced/discover-urls` | POST | ✅ Working | URL discovery |
-| `/api/v1/enhanced/extract-tables` | POST | ✅ Working | Table extraction |
-| `/api/v1/enhanced/features` | GET | ✅ Working | List features |
-| `/api/v1/enhanced/performance` | GET | ✅ Working | Performance stats |
-
-### Advanced v2 API - 14 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/v2/advanced/scrape/advanced` | POST | ✅ Working | Advanced scraping |
-| `/api/v1/v2/advanced/scrape/multi-engine` | POST | ✅ Working | Multi-engine scrape |
-| `/api/v1/v2/advanced/search/multi-provider` | POST | ✅ Working | Multi-provider search |
-| `/api/v1/v2/advanced/extract/attributes` | POST | ✅ Working | Attribute extraction |
-| `/api/v1/v2/advanced/extract/multi-entity` | POST | ✅ Working | Entity extraction |
-| `/api/v1/v2/advanced/map/website` | POST | ⚠️ Partial | Website mapping |
-| `/api/v1/v2/advanced/track/changes` | POST | ✅ Working | Change tracking |
-| `/api/v1/v2/advanced/batch/submit` | POST | ✅ Working | Batch operations |
-| `/api/v1/v2/advanced/batch/{id}/status` | GET | ✅ Working | Batch status |
-| `/api/v1/v2/advanced/batch/{id}/control` | POST | ✅ Working | Batch control |
-| `/api/v1/v2/advanced/config/generate` | POST | ⚠️ Needs API Key | LLM config generation |
-| `/api/v1/v2/advanced/actions/execute` | POST | ✅ Working | Browser actions |
-| `/api/v1/v2/advanced/stats/comprehensive` | GET | ✅ Working | System stats |
-| `/api/v1/v2/advanced/health/advanced` | GET | ✅ Working | Advanced health |
-
-### Auth API - 10 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/auth/register` | POST | ✅ Working | User registration |
-| `/api/v1/auth/login` | POST | ✅ Working | Login |
-| `/api/v1/auth/refresh` | POST | ✅ Working | Token refresh |
-| `/api/v1/auth/me` | GET | ✅ Working | Current user |
-| `/api/v1/auth/api-keys` | GET/POST | ✅ Working | API key management |
-| `/api/v1/auth/api-keys/{id}` | DELETE | ✅ Working | Delete API key |
-| `/api/v1/auth/usage` | GET | ✅ Working | Usage stats |
-| `/api/v1/auth/change-password` | POST | ✅ Working | Password change |
-| `/api/v1/auth/reset-password` | POST | ✅ Working | Password reset |
-| `/api/v1/auth/verify-email` | POST | ✅ Working | Email verification |
-
-### Billing API - 10 Endpoints ✅
-| Endpoint | Method | Status | Description |
-|----------|--------|--------|-------------|
-| `/api/v1/billing/plans` | GET | ✅ Working | List plans |
-| `/api/v1/billing/subscription` | GET/POST | ✅ Working | Subscription |
-| `/api/v1/billing/checkout-session` | POST | ✅ Working | Stripe checkout |
-| `/api/v1/billing/billing-portal` | POST | ✅ Working | Billing portal |
-| `/api/v1/billing/invoices` | GET | ✅ Working | Invoices |
-| `/api/v1/billing/payment-methods` | GET/POST | ✅ Working | Payment methods |
-| `/api/v1/billing/webhook/stripe` | POST | ✅ Working | Stripe webhook |
+1. **Edge handles what it can.** Auth checks, rate limiting, KV-cache lookups, simple search proxying, and any endpoint with a pure-TypeScript implementation terminate at the worker. No Python round-trip.
+2. **Container handles what it must.** Heavy scraping, complex orchestrations (research pipelines, big crawls), Stripe webhook signing, alembic migrations against the long-tail of Postgres-backed features. Everything called from the worker via a [service binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/).
+3. **Durable Objects do stateful coordination, never request handling.** A request handler may *create* a DO instance; the DO itself runs to completion in the background and emits events via Queues / webhooks.
+4. **Queues are the boundary for "this might take seconds."** Anything that could blow the 50ms Worker CPU budget or the Container's request-timeout gets queued.
 
 ---
 
-## Service Layer Architecture
+## Components
 
-### 1. AI Services (`app/services/ai/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `cloudflare_ai.py` | 861 | ✅ Complete | Cloudflare Workers AI integration |
-| `search_pipeline.py` | 507 | ✅ Complete | End-to-end AI search pipeline |
-| `__init__.py` | - | ✅ | Exports |
+### Edge worker — `workers/`
 
-**Capabilities:**
-- ✅ OpenAI gpt-oss-120b (Responses API)
-- ✅ Reasoning models (qwq-32b, deepseek-r1)
-- ✅ Quality models (llama-3.3-70b, gemma-3)
-- ✅ Speed models (llama-3.1-8b)
-- ✅ Embeddings (bge-m3, multilingual)
-- ✅ Reranking (bge-reranker)
-- ✅ Content safety (llama-guard)
-- ✅ Intelligent model selection
-- ✅ Chain-of-thought reasoning
+- **Stack:** TypeScript, Hono router on Cloudflare Workers.
+- **Files of interest:** `workers/src/index.ts` (router), `workers/src/routes/*.ts` (per-feature handlers), `workers/src/durable-objects/*.ts`, `workers/src/queue-consumer.ts`, `workers/src/scheduled.ts`, `workers/src/middleware/*.ts`, `workers/wrangler.toml` (bindings), `workers/schema.sql` (D1 schema), `workers/containers.toml` (Container config).
+- **Bindings:** `DB` (D1), `CACHE` (KV — auth/ratelimit/search cache), `BUCKET` (R2), `VECTORS` (Vectorize), `AI` (Workers AI), `QUEUE` (Cloudflare Queues), plus DO namespaces `RATE_LIMITER`, `TOPIC_MONITOR`, `RESEARCH_AGENT`, `SESSION_MANAGER`, and a service binding `BACKEND` → FastAPI Container.
+- **Per-route file map:** `agent.ts` (Tavily-compat), `auth.ts`, `billing.ts`, `knowledge.ts`, `monitor.ts`, `neural.ts`, `proxy.ts` (catch-all → Container), `rag.ts`, `search.ts`, `verify.ts`.
 
-### 2. Scraping Services (`app/services/scraping/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `scraping.py` | 815 | ✅ Complete | Core scraping service |
-| `enhanced_scraping.py` | 643 | ✅ Complete | Advanced scraping |
-| `multi_engine_scraper.py` | 719 | ✅ Complete | Multi-engine support |
-| `playwright_scraping.py` | 539 | ✅ Complete | JavaScript rendering |
-| `html_converter.py` | 631 | ✅ Complete | HTML processing |
-| `markdown_generation.py` | 665 | ✅ Complete | Markdown output |
-| `pdf_processing.py` | 617 | ✅ Complete | PDF extraction |
-| `puppeteer_client.py` | 33 | ⚠️ Stub | Puppeteer integration |
+### Backend Container — `app/` and `apps/backend/`
 
-**Capabilities:**
-- ✅ Static HTML scraping (BeautifulSoup)
-- ✅ JavaScript rendering (Playwright)
-- ✅ PDF extraction
-- ✅ Markdown conversion
-- ✅ Multi-engine parallel scraping
-- ✅ Robots.txt compliance
-- ✅ User-agent rotation
+- **Stack:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy + Alembic (Postgres), Celery (Redis), httpx for outbound calls. 93 endpoints across 14 routers (counted via `app/api/v1/*.py` and `app/api/v2/*.py`).
+- **Two paths, same code.** `app/` is the historic single-package layout still imported by production (`uvicorn app.main:app`). `apps/backend/` is the monorepo-shaped mirror that builds the Docker image and ships under [`Dockerfile.cloudflare`](../Dockerfile.cloudflare). A future PR will collapse them — see [ADR-0006](./adr/0006-monorepo-with-apps-and-workers.md).
+- **Service layout:** `app/services/core/` (DB, KV, queues, D1 client), `app/services/search/` (SearXNG orchestration + dedup + rerank), `app/services/scraping/` (static + JS + PDF), `app/services/extraction/` (entities, tables, attributes), `app/services/crawling/`, `app/services/rag/`, `app/services/ai/` (Workers AI client + model-tier selector).
+- **Inbound interface:** invoked by the edge worker via service binding for endpoints that aren't pure-TypeScript. The Container does *not* face the public internet directly in production.
 
-### 3. Extraction Services (`app/services/extraction/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `extraction_strategies.py` | 700+ | ✅ Complete | Extraction strategies |
-| `chunking_strategies.py` | 600+ | ✅ Complete | Content chunking |
-| `ai_extraction.py` | 500+ | ✅ Complete | AI-powered extraction |
-| `attributes_extraction.py` | 500+ | ✅ Complete | Attribute extraction |
-| `table_extraction.py` | 500+ | ✅ Complete | Table extraction |
-| `multi_entity_extraction.py` | 500+ | ✅ Complete | Entity extraction |
-| `content_filters.py` | 400+ | ✅ Complete | Content filtering |
-| `link_analysis.py` | 400+ | ✅ Complete | Link analysis |
+### Web dashboard — `apps/web/`
 
-**Capabilities:**
-- ✅ LLM-based extraction
-- ✅ CSS/XPath selectors
-- ✅ Schema-based extraction
-- ✅ Table extraction (HTML tables)
-- ✅ Multi-entity extraction
-- ✅ Content chunking strategies
-- ✅ Boilerplate removal
+- **Stack:** Next.js 15 (App Router) on Cloudflare Workers via `@opennextjs/cloudflare`. Tailwind for styling. Routes under `app/(auth)/` (login, signup), `app/(dashboard)/` (dashboard, api-keys, playground, billing).
+- **Deploy:** Cloudflare Workers via `pnpm cf:build && pnpm cf:deploy` (config in `apps/web/wrangler.toml`). The migration from Cloudflare Pages to native Workers landed in commit [`376f886`](https://github.com/Rakesh1002/unsearch/commit/376f886) and is documented in `CHANGELOG.md`.
+- **API client:** uses `@unsearch/sdk` directly — no separate fetch layer.
 
-### 4. Crawling Services (`app/services/crawling/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `deep_crawling.py` | 700+ | ✅ Complete | Deep crawling |
-| `website_mapping.py` | 600+ | ✅ Complete | Site mapping |
-| `adaptive_crawling.py` | 600+ | ✅ Complete | Adaptive crawling |
-| `change_tracking.py` | 500+ | ✅ Complete | Change detection |
-| `crawl_management.py` | 500+ | ✅ Complete | Crawl management |
-| `url_seeder.py` | 400+ | ✅ Complete | URL seeding |
-| `virtual_scrolling.py` | 400+ | ✅ Complete | Infinite scroll |
-| `crawler_monitor.py` | 300+ | ✅ Complete | Monitoring |
+### SDKs — `apps/sdk-*/`
 
-**Capabilities:**
-- ✅ Deep crawling
-- ✅ Website mapping
-- ✅ Change tracking
-- ✅ Adaptive rate limiting
-- ✅ Virtual scrolling (infinite scroll pages)
-- ✅ Crawl scheduling
+| Package | Languages | Purpose |
+|---------|-----------|---------|
+| [`@unsearch/sdk`](../apps/sdk-ts/) | TypeScript / Node / Bun / Deno / Workers / Edge | Primary public SDK, mirrors REST surface 1:1 |
+| [`unsearch`](../apps/sdk-py/) | Python 3.9–3.13 (sync + async) | See [ADR-0007](./adr/0007-python-sdk-sync-and-async.md) |
+| [`@unsearch/llamaindex`](../apps/sdk-llamaindex/) | TypeScript | LlamaIndex `BaseRetriever` implementation backed by UnSearch |
 
-### 5. Infrastructure Services (`app/services/infrastructure/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `batch_operations.py` | 700+ | ✅ Complete | Batch processing |
-| `dispatcher.py` | 664 | ✅ Complete | Task dispatching |
-| `link_preview.py` | 672 | ✅ Complete | Link previews |
-| `proxy_rotation.py` | 534 | ✅ Complete | Proxy rotation |
-| `user_agent_generator.py` | 639 | ✅ Complete | UA generation |
-| `webhook_integration.py` | 659 | ✅ Complete | Webhooks |
-| `zero_retention.py` | 599 | ✅ Complete | Privacy mode |
+All three are kept structurally parallel (same method names, same request/response shapes, same SSE-streaming pattern) so cross-language onboarding is mechanical.
 
-**Capabilities:**
-- ✅ Batch job processing
-- ✅ Proxy rotation
-- ✅ User-agent rotation
-- ✅ Webhook notifications
-- ✅ Zero-retention mode
+### SearXNG — `searxng/`
 
-### 6. Automation Services (`app/services/automation/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `actions_system.py` | 800+ | ✅ Complete | Browser actions |
-| `llm_configuration.py` | 700+ | ⚠️ Needs API Key | LLM config |
-| `browser_config.py` | 500+ | ✅ Complete | Browser config |
-| `browser_profiler.py` | 400+ | ✅ Complete | Browser profiling |
+The 70+-engine meta-search aggregator. Self-hosted as a Docker container (`docker-compose.yml`) in production and in self-host deployments. The FastAPI backend in `app/services/search/` is the only client. Configuration in `searxng/settings.yml`. See [ADR-0002](./adr/0002-searxng-as-meta-search-aggregator.md).
 
-**Capabilities:**
-- ✅ Click, type, scroll actions
-- ✅ Form filling
-- ✅ Screenshot capture
-- ✅ JavaScript execution
-- ⚠️ LLM-powered configuration (needs API key)
+### Origin Postgres + Redis
 
-### 7. Core Services (`app/services/core/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `searxng.py` | 600+ | ✅ Complete | SearXNG integration |
-| `database.py` | 500+ | ✅ Complete | Database access |
-| `cache.py` | 500+ | ✅ Complete | Redis caching |
-| `database_manager.py` | 300+ | ✅ Complete | DB management |
-| `cache_context.py` | 200+ | ✅ Complete | Cache context |
+Postgres is the Container's origin database for everything that hasn't moved to D1 yet — primarily the legacy Stripe/billing state and the Celery task results table. Redis backs Celery's broker and Celery's result backend. Both run as containers in self-host (`docker-compose.yml`) and as managed services (Neon Postgres, Upstash Redis) in production.
 
-### 8. RAG Services (`app/services/rag/`)
-| File | Lines | Status | Purpose |
-|------|-------|--------|---------|
-| `rag.py` | 871 | ✅ Complete | RAG pipeline |
+### Monitoring — `monitoring/`
 
-**Capabilities:**
-- ✅ Embedding generation (Cloudflare AI / OpenAI)
-- ✅ Vector store (in-memory)
-- ✅ Semantic search
-- ✅ Research mode
-- ✅ Query generation
+Prometheus + Grafana, provisioned via `monitoring/docker-compose.monitoring.yml`. Dashboards in `monitoring/grafana/dashboards/unsearch-overview.json`. The Container exports Prometheus metrics at `/metrics`; the worker emits the same via Workers Analytics Engine. Detailed observability runbook: [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md).
 
 ---
 
-## Infrastructure
+## Data model — what lives where
 
-### Docker Services
-| Service | Purpose | Status |
-|---------|---------|--------|
-| `api` | FastAPI application | ✅ Running |
-| `searxng` | Meta-search (70+ engines) | ✅ Running |
-| `redis` | Caching, sessions | ✅ Running |
-| `postgres` | User data, API keys | ✅ Running |
-| `flower` | Celery monitoring | ⚠️ Optional |
-| `nginx` | Reverse proxy | ⚠️ Optional |
+| State | Store | Why |
+|-------|-------|-----|
+| Users, accounts, plans | D1 (`workers/schema.sql`) — primary; Postgres mirror for the long-tail of Container-only features | Most reads happen at the edge; users + plans are the hot path |
+| API keys | D1 | Auth check is on every request; must be edge-fast |
+| Stripe subscriptions, invoices | Postgres (Container) — D1 stores only the `customer_id` / `subscription_id` projection | Stripe webhooks land at the Container; full state is too rich for D1 |
+| Rate-limit counters | KV (TTL) + DO `RateLimiter` for sliding-window | KV for absolute-limit checks; DO for per-key sliding window |
+| Search result cache | KV (60s default, configurable per-plan) | Reads are cache-hit-or-recompute; per-request size fits KV's value-size limit |
+| Embeddings + metadata | Vectorize (`@cf/baai/bge-m3`, 1024d) | First-party vector store with edge-bindings |
+| Scraped HTML + PDFs | R2 | Variable size, long retention, infrequent reads |
+| Async job state | DO `ResearchAgent`, `TopicMonitor` (alarms), Queue messages | Each long-running operation owns its own DO; queue for dispatch |
+| Chat / pagination cursors | DO `SessionManager` | Per-user state with TTL eviction |
 
-### External Services
-| Service | Purpose | Status |
-|---------|---------|--------|
-| Cloudflare Workers AI | LLM, embeddings, safety | ✅ Configured |
-| Stripe | Billing (optional) | ⚠️ Needs config |
+The Container reaches D1 / KV / Vectorize / Queues over **REST**, not via direct bindings, because Cloudflare Containers do not yet expose direct bindings from inside the Container runtime. The REST clients live in `app/services/core/d1_client.py`, `cache_kv.py`, and `queue_producer.py`. The worker uses direct bindings — no REST hop.
 
 ---
 
-## Code Statistics
+## Request lifecycle examples
 
-| Category | Files | Lines of Code |
-|----------|-------|---------------|
-| Services | 50+ | 27,500+ |
-| API | 10+ | 3,000+ |
-| Models | 6 | 1,500+ |
-| Utils | 6 | 2,000+ |
-| Config | 1 | 300+ |
-| **Total** | **70+** | **34,000+** |
+### Cache hit on `POST /api/v1/search`
 
----
+1. Worker `index.ts` matches the route, calls `routes/search.ts`.
+2. KV lookup with key `search:sha256(query+engines+filters)`.
+3. **Hit** → return the cached `SearchResponse` with `cache_hit: true`. ~5ms p95. Worker CPU budget unused.
 
-## Integration Status
+### Cache miss on `POST /api/v1/search`
 
-### Fully Integrated ✅
-- [x] Cloudflare Workers AI (all models)
-- [x] SearXNG (70+ search engines)
-- [x] Redis caching
-- [x] PostgreSQL storage
-- [x] Authentication system
-- [x] API key management
-- [x] Rate limiting
+1. Worker → SearXNG via the Container service binding.
+2. Container `app/api/v1/search.py` orchestrates `app/services/search/`: parallel engine queries, dedup, optional rerank via Workers AI (worker-resident — Container calls back to the worker for AI inference).
+3. Optional scraping if `scrape_content: true` (`app/services/scraping/`).
+4. Container writes the response back to KV via REST (`cache_kv.py`).
+5. Container returns response to the worker, worker returns to caller.
 
-### Partially Integrated ⚠️
-- [ ] Stripe billing (needs API key)
-- [ ] LLM config generation (needs OpenAI key)
-- [ ] Puppeteer (stub only)
-- [ ] Website mapping (validation issues)
+### `POST /api/v1/agent/research`
 
-### Not Integrated ❌
-- [ ] External vector database (using in-memory)
-- [ ] Celery workers (disabled)
-- [ ] Email notifications
+1. Worker `routes/agent.ts` validates auth + plan.
+2. Worker spawns / fetches a `ResearchAgent` Durable Object instance keyed by `session_id`.
+3. DO returns `{session_id, status: "running"}` immediately to the caller.
+4. DO loops: query expansion → SearXNG search → scrape candidates → Workers AI synthesis → repeat until depth limit or convergence. Each step writes its results back to the DO's internal SQLite.
+5. Caller polls `GET /api/v1/agent/research/{id}` → worker reads DO state → returns. When `status: "completed"`, the `finalAnswer` field is populated.
+
+### Topic-monitor webhook fire
+
+1. Caller creates monitor via `POST /api/v1/monitor/topics` → worker spawns a `TopicMonitor` DO with `interval_minutes` and `webhook_url`.
+2. DO sets an alarm. On wake, runs the monitored search, computes a delta against the last result, and **enqueues** the webhook delivery via Cloudflare Queues.
+3. The `queue-consumer.ts` worker reads the queue, POSTs to the webhook with retry + exponential backoff, and writes the delivery receipt back to the DO.
 
 ---
 
-## API Compatibility
+## Performance targets
 
-| Platform | Compatibility | Notes |
-|----------|---------------|-------|
-| Tavily | ✅ 100% | Drop-in replacement |
-| LangChain | ✅ Full | SDK provided |
-| LlamaIndex | ⚠️ Planned | Not yet implemented |
-| OpenAI | ⚠️ Partial | Similar format |
-
----
-
-## Security Features
-
-| Feature | Status |
-|---------|--------|
-| API key authentication | ✅ |
-| JWT tokens | ✅ |
-| Rate limiting | ✅ |
-| Zero-retention mode | ✅ |
-| Content safety checks | ✅ |
-| CORS configuration | ✅ |
-| Input validation | ✅ |
+| Metric | Target | Current |
+|--------|--------|---------|
+| API endpoints | 93 across 14 routers | ✅ |
+| p95 search latency (KV cache hit) | <100ms | ~80ms |
+| p95 search latency (miss) | <2s | 1–3s |
+| AI answer generation | tier-dependent | `fast`: 1–3s, `balanced`: 3–8s, `reasoning`: 8–20s |
+| Scraping throughput | 10 URLs/s per Container replica | ✅ |
+| Container cold start | <2s | ~1.5s |
+| Test coverage | >80% | ~40% (tech debt) |
+| Uptime | 99.9% | tracked via [`workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md) |
 
 ---
 
-## Performance
+## Tech-debt callouts
 
-| Metric | Value |
-|--------|-------|
-| API endpoints | 58 |
-| Concurrent requests | 100+ |
-| Search latency (cached) | <100ms |
-| Search latency (uncached) | 1-3s |
-| AI answer generation | 2-35s (model dependent) |
-| Scraping throughput | 10 URLs/s |
+From [docs/roadmap.md § Technical Debt](./roadmap.md):
+
+| Issue | Location | Impact | Plan |
+|-------|----------|--------|------|
+| In-memory vector store | `app/services/rag/rag.py` | Doesn't scale beyond a small corpus | Migrate fully to Vectorize (most paths already use it; a few are still legacy) |
+| Puppeteer stub | `app/services/scraping/puppeteer_client.py` | No fallback when CF Browser Rendering unavailable | Either wire CF Browser Rendering or drop the stub |
+| Sync DB operations | Multiple Container files | Blocks Uvicorn worker threads under load | Move to async SQLAlchemy where it matters |
+| Two backend layouts (`app/` vs `apps/backend/`) | Repo root vs monorepo | Onboarding confusion | Collapse — separate PR — see [ADR-0006](./adr/0006-monorepo-with-apps-and-workers.md) |
+
+---
+
+## What this doc doesn't cover
+
+- **Per-endpoint contracts.** See [`API_REFERENCE.md`](./API_REFERENCE.md) and the live OpenAPI at `/docs`.
+- **Per-decision rationale.** See [`adr/`](./adr/README.md).
+- **Honest feature status.** See [`feature-matrix.md`](./feature-matrix.md) and [ADR-0008](./adr/0008-honest-feature-status-policy.md).
+- **Deploy step-by-step.** See [`deployment/`](./deployment/) and [`quickstart.md`](./quickstart.md).
+- **On-call playbook.** See [`operations/RUNBOOKS.md`](./operations/RUNBOOKS.md).
+- **Where does that file live?** See [`what-is-what.md`](./what-is-what.md).
