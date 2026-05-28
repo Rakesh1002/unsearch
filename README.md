@@ -160,13 +160,13 @@ unsearch/
 │   ├── tests/              #   pytest suite
 │   ├── Dockerfile          #   Self-host image
 │   └── Dockerfile.cloudflare #   CF Containers image
-├── apps/                   # TypeScript / Python SDK packages (pnpm workspace)
+├── apps/                   # TypeScript / Python packages (pnpm workspace)
+│   ├── workers/            #   Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema, containers.toml
 │   ├── web/                #   Next.js dashboard on Cloudflare Workers (@opennextjs/cloudflare)
 │   ├── sdk-ts/             #   @unsearch/sdk — TypeScript SDK
 │   ├── sdk-py/             #   unsearch — Python SDK (sync + async)
 │   ├── sdk-llamaindex/     #   @unsearch/llamaindex — LlamaIndex retriever
 │   └── mcp-server/         #   @unsearch/mcp-server — MCP server (P0 Week 3)
-├── workers/                # Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema, containers.toml
 ├── infra/                  # Operational config (self-host stack + CF Container sidecars)
 │   ├── nginx/              #   Reverse-proxy for self-host TLS
 │   ├── monitoring/         #   Prometheus + Grafana provisioning

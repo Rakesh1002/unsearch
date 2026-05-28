@@ -38,7 +38,7 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 |-----|------|
 | What's where in the repo | [`what-is-what.md`](./what-is-what.md) |
 | How the architecture works | [`architecture.md`](./architecture.md) |
-| Cloudflare-specific wiring | [`cloudflare-architecture.md`](./cloudflare-architecture.md) and [`/workers/README.md`](../workers/README.md) |
+| Cloudflare-specific wiring | [`cloudflare-architecture.md`](./cloudflare-architecture.md) and [`/apps/workers/README.md`](../apps/workers/README.md) |
 | Why we made each major decision | [`adr/`](./adr/README.md) |
 | Repo conventions (testing, commits, naming) | [`/CONTRIBUTING.md`](../CONTRIBUTING.md) and [`/CLAUDE.md`](../CLAUDE.md) |
 | What shipped recently | [`/CHANGELOG.md`](../CHANGELOG.md) |
@@ -47,12 +47,12 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 
 | For | Read |
 |-----|------|
-| Deploy to Cloudflare (recommended) | [`/workers/README.md`](../workers/README.md) and [`deployment/quick-reference.md`](./deployment/quick-reference.md) |
+| Deploy to Cloudflare (recommended) | [`/apps/workers/README.md`](../apps/workers/README.md) and [`deployment/quick-reference.md`](./deployment/quick-reference.md) |
 | Deploy to Railway | [`deployment/railway.md`](./deployment/railway.md) |
 | Deploy to DigitalOcean | [`deployment/digitalocean.md`](./deployment/digitalocean.md) |
 | On-call playbooks | [`operations/RUNBOOKS.md`](./operations/RUNBOOKS.md) |
-| Observability + dashboards | [`/workers/OBSERVABILITY.md`](../workers/OBSERVABILITY.md) |
-| Manage secrets | [`SECRETS_MANAGEMENT.md`](./SECRETS_MANAGEMENT.md) and [`/workers/SECRETS.md`](../workers/SECRETS.md) |
+| Observability + dashboards | [`/apps/workers/OBSERVABILITY.md`](../apps/workers/OBSERVABILITY.md) |
+| Manage secrets | [`SECRETS_MANAGEMENT.md`](./SECRETS_MANAGEMENT.md) and [`/apps/workers/SECRETS.md`](../apps/workers/SECRETS.md) |
 | Configure env vars | [`configuration/env-variables.md`](./configuration/env-variables.md) |
 | Set up Stripe billing | [`BILLING_SETUP.md`](./BILLING_SETUP.md), [`configuration/stripe-webhook.md`](./configuration/stripe-webhook.md), [`configuration/webhook-events.md`](./configuration/webhook-events.md) |
 
@@ -74,7 +74,7 @@ Start here. This page is the entry point for everyone who isn't sure which file 
 
 - **Status taxonomy.** Every feature claim uses ✅ shipped / 🔶 in beta / 📋 planned. See [ADR-0008](./adr/0008-honest-feature-status-policy.md).
 - **Single source of truth.** [`feature-matrix.md`](./feature-matrix.md) is canonical for status; [`CHANGELOG.md`](../CHANGELOG.md) is canonical for what shipped when. Other docs link to these — they don't restate.
-- **Code/doc co-location.** Per-package READMEs live next to the code: `apps/*/README.md`, `workers/README.md`. Cross-cutting docs live here.
+- **Code/doc co-location.** Per-package READMEs live next to the code: `apps/*/README.md`, `apps/workers/README.md`. Cross-cutting docs live here.
 - **No emoji in code or commit messages.** Emoji are fine in docs only.
 - **ADRs document non-obvious decisions.** Don't write one for routine implementation choices. See [`adr/README.md`](./adr/README.md).
 

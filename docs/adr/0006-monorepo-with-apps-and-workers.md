@@ -1,6 +1,6 @@
-# ADR-0006: Monorepo layout with `apps/*` and `workers/`
+# ADR-0006: Monorepo layout — single `apps/*` workspace + `backend/` + `infra/`
 
-- Status: Accepted (amended 2026-05-28: dual backends collapsed; backend moved into `backend/`, ops into `infra/`)
+- Status: Accepted (amended 2026-05-28: dual backends collapsed; backend moved into `backend/`, ops into `infra/`, workers moved into `apps/workers/`)
 - Date: 2026-04-15
 - Deciders: @Rakesh1002
 
@@ -24,7 +24,7 @@ Use a **single Git repository** with this layout:
 
 ```
 unsearch/
-├── backend/                # FastAPI backend (single source of truth, post-2026-05-28 reorg)
+├── backend/                # FastAPI Python backend (the only non-`apps/` deployable; reflects Python's single-tree convention)
 │   ├── app/                #   Python module (`from app.X import Y`)
 │   ├── alembic/            #   Postgres migrations
 │   ├── tests/              #   pytest suite
@@ -33,25 +33,26 @@ unsearch/
 │   ├── alembic.ini         #   Alembic config
 │   ├── Dockerfile          #   Self-host image
 │   └── Dockerfile.cloudflare #   CF Containers image
-├── apps/                   # TypeScript / Python SDK packages (pnpm workspace)
+├── apps/                   # All TypeScript / SDK packages (pnpm workspace; `apps/*` glob in pnpm-workspace.yaml)
+│   ├── workers/            #   Cloudflare Workers edge router (Hono) + Durable Objects + D1 schema + MCP transport
 │   ├── web/                #   Next.js dashboard (on Workers via @opennextjs/cloudflare)
 │   ├── sdk-ts/             #   @unsearch/sdk — TypeScript SDK
 │   ├── sdk-py/             #   unsearch — Python SDK
 │   ├── sdk-llamaindex/     #   @unsearch/llamaindex — LlamaIndex retriever
 │   └── mcp-server/         #   @unsearch/mcp-server — npx-runnable MCP wrapper (P0 Week 3)
-├── workers/                # Cloudflare Workers edge router + Durable Objects + D1 schema + MCP transport
-├── infra/                  # Operational config
+├── infra/                  # Operational config (self-host stack + CF Container sidecars)
 │   ├── nginx/              #   Reverse-proxy for self-host TLS
 │   ├── monitoring/         #   Prometheus + Grafana provisioning
 │   └── searxng/            #   SearXNG meta-search engine config
 ├── docs/                   # All long-form docs (this directory)
 ├── scripts/                # Setup + ops scripts
-└── docker-compose*.yml     # Self-host stacks
+└── docker-compose*.yml     # Self-host stacks (build context = root; mount paths from infra/)
 ```
 
 - **JavaScript/TypeScript packages** use **pnpm workspaces** (`pnpm-workspace.yaml`) — one lockfile, one `node_modules`, fast install.
 - **Python backend** lives under `backend/` (module name stays `app/` so `uvicorn app.main:app` still works when invoked from `backend/`). The Python SDK at `apps/sdk-py/` is independently packaged with Hatchling — no shared Python lockfile.
 - **Operational config** lives under `infra/` — `nginx/`, `monitoring/`, `searxng/`. `docker-compose*.yml` stays at the root (compose convention) but mounts paths from `infra/`.
+- **All TypeScript / SDK packages live under `apps/*`** — the Cloudflare edge worker, the Next.js dashboard, all SDKs, and the MCP server. `pnpm-workspace.yaml` is a single `apps/*` glob; nothing is registered outside it.
 - **CI scoping** — each `apps/*/` package has its own workflow under `.github/workflows/` (e.g., `sdk-py.yml`) triggered on `paths:` filters so unrelated changes don't run unrelated CI.
 
 The `backend/` directory is the single source of truth for the backend. (Prior to the 2026-05-28 reorg, the backend was at `app/` at the repo root, and prior to that, there was *also* a duplicate `apps/backend/` — see Amendment below.)
@@ -84,6 +85,28 @@ This reorg:
 - Updates `Makefile`, `scripts/manage.sh`, `scripts/test.sh`, `scripts/setup.sh`, `scripts/run_rag_tests.sh`, `scripts/restore.sh`, `ecosystem.config.js` to `cd backend` before backend operations.
 
 The Python module path stays `app/`. The on-disk path becomes `backend/app/`. uvicorn invocation stays `uvicorn app.main:app` (now invoked from `backend/`). No runtime imports or wire formats change.
+
+## Amendment — 2026-05-28 (part 3): `workers/` moved into `apps/workers/`
+
+The Part 2 layout still had `workers/` (Cloudflare edge router) as a sibling of `backend/` and `apps/` at the root. That was inconsistent: `apps/web` was already a Cloudflare Workers deployment but lived under `apps/`, while `apps/workers/` (the API edge router) sat at root. Two Workers deployments, two different shelves.
+
+Decision: move `workers/` → `apps/workers/`. The single rule for `apps/*` becomes: **any deployable TypeScript / SDK package belongs in `apps/`** — including the Cloudflare edge worker.
+
+`backend/` stays at the root, not under `apps/`, because (a) it's Python (different language, different runtime), (b) its `app/` Python module name would collide with the `apps/` directory if nested, and (c) the Python convention is one source tree per project, not a workspace of subpackages.
+
+Mechanical changes in the part-3 PR:
+
+- `git mv workers apps/workers`.
+- `pnpm-workspace.yaml` collapses to just `- "apps/*"` (no separate `- "workers"` line).
+- `apps/workers/containers.toml` build context: `..` → `../..`; dockerfile: `../backend/Dockerfile.cloudflare` → `../../backend/Dockerfile.cloudflare`.
+- `.github/workflows/deploy-cf.yml`: every `working-directory: workers` and `workingDirectory: workers` → `apps/workers`; `cache-dependency-path: workers/pnpm-lock.yaml` → `apps/workers/pnpm-lock.yaml`.
+- `scripts/cf-provision.sh`: `cd "$REPO_ROOT/workers"` → `cd "$REPO_ROOT/apps/workers"`.
+- `backend/Dockerfile.cloudflare` comment header: `workers/containers.toml` → `apps/workers/containers.toml`.
+- All docs (`docs/architecture.md`, `docs/what-is-what.md`, `docs/README.md`, `docs/citation-envelope.md`, `docs/roadmap.md`, `docs/strategy/{user-journey,pricing}.md`, ADRs 0001 / 0010, README.md): `workers/...` references → `apps/workers/...`. Historical CHANGELOG entries are left as-is (history is history).
+
+The Worker's internal Hono routes, Durable Object bindings, D1 schema, MCP transport, wrangler.toml, and all source code are unchanged.
+
+Concurrently in part 3, the now-empty `apps/backend/` directory was removed (the gitignored `.env` from before is left for the user to manually relocate to `backend/.env` on their local checkout — it can't ship through git).
 
 ## Consequences
 

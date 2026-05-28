@@ -156,7 +156,7 @@ The envelope does **not** prove:
 |---|---|---|
 | Envelope returned inline on `/api/v1/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/search.py:30` + `backend/app/services/citation_store.py` (new) |
 | Envelope returned inline on `/api/v1/agent/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/agent.py:45` |
-| Envelope returned inline on MCP `search` tool | ✏️ Shipping Week 3 | `workers/src/mcp/server.ts` (new) |
+| Envelope returned inline on MCP `search` tool | ✏️ Shipping Week 3 | `apps/workers/src/mcp/server.ts` (new) |
 | R2 snapshot store, content-addressable | ✏️ Shipping Week 2 | `backend/app/services/citation_store.py` (new) |
 | HMAC v1 signing | ✏️ Shipping Week 2 | `app/services/citation_signer.py` (new) |
 | `POST /api/v1/verify/citation` (snapshot + live diff) | ✏️ Shipping Week 2 | `backend/app/api/v1/verify.py` |

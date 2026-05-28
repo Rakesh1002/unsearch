@@ -57,7 +57,7 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 2. Build `backend/Dockerfile.cloudflare` image with FastAPI + SearXNG sidecar (supervisord-managed). **(Day 3)**
 3. `wrangler containers deploy` on Cloudflare Containers GA (active-CPU billing). **(Day 3–4)**
 4. Resolve all `localhost` refs in `backend/app/config.py:31,37,47,79,140` to container-internal DNS. **(Day 4)**
-5. Uncomment container binding `workers/wrangler.toml:84-90`; `wrangler deploy` Hono edge to `api.unsearch.dev`. **(Day 5)**
+5. Uncomment container binding `apps/workers/wrangler.toml:84-90`; `wrangler deploy` Hono edge to `api.unsearch.dev`. **(Day 5)**
 6. `cd apps/web && pnpm install && pnpm cf:build && pnpm cf:deploy` to `app.unsearch.dev`. **(Day 6)**
 7. DNS: `unsearch.dev` → landing, `app.unsearch.dev` → dashboard, `api.unsearch.dev` → API/MCP. **(Day 7)**
 
@@ -74,7 +74,7 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 
 ### Week 3 — MCP-first distribution + launch
 
-16. Build `workers/src/mcp/server.ts` — Hono MCP route at `/mcp` (Streamable HTTP transport). **(Day 15)**
+16. Build `apps/workers/src/mcp/server.ts` — Hono MCP route at `/mcp` (Streamable HTTP transport). **(Day 15)**
 17. Expose 4 tools: `search`, `extract`, `research`, `verify_claim`. **(Day 15–16)**
 18. MCP auth: `X-API-Key` header → D1 lookup → plan-aware rate limit. **(Day 16)**
 19. Build `apps/mcp-server/` npx package; `claude mcp add unsearch` works. **(Day 17)**
@@ -165,7 +165,7 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 | Issue | Location | Impact | Fix |
 |-------|----------|--------|-----|
 | Hardcoded localhost URLs | `backend/app/config.py:31,37,47,79,140` | Container deploy blocks | Week 1, Day 4 — env-driven container DNS |
-| Container binding disabled | `workers/wrangler.toml:84-90` | Workers cannot reach FastAPI | Week 1, Day 5 — uncomment after container deploys |
+| Container binding disabled | `apps/workers/wrangler.toml:84-90` | Workers cannot reach FastAPI | Week 1, Day 5 — uncomment after container deploys |
 | `engines_succeeded` not tracked | `backend/app/api/v1/search.py:193` | Metric gap | Low priority; close-out post-Week 3 |
 | localStorage JWT placeholder | `apps/web/lib/auth.ts` | v1 only; not production for ICP-2 | Month 2 — Better Auth migration |
 
@@ -239,5 +239,5 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 - **AI pipeline:** [`docs/ai-pipeline.md`](./ai-pipeline.md)
 - **Citation envelope schema:** [`docs/citation-envelope.md`](./citation-envelope.md)
 - **API reference:** `http://localhost:8000/docs` (local) / [api.unsearch.dev/docs](https://api.unsearch.dev/docs) (after Week 1 deploy)
-- **Edge Worker docs:** [`workers/README.md`](../workers/README.md)
+- **Edge Worker docs:** [`apps/workers/README.md`](../apps/workers/README.md)
 - **Approved 3-week rebuild plan:** `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`

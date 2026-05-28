@@ -72,7 +72,7 @@ At 5K searches + 1K snapshots + 100 verifications, blended marginal cost ≈ $0.
 
 Defense against Free-tier abuse:
 
-- IP-based rate limits at the edge (Durable-Object sliding window in `workers/src/durable-objects/rate-limiter.ts`).
+- IP-based rate limits at the edge (Durable-Object sliding window in `apps/workers/src/durable-objects/rate-limiter.ts`).
 - Sandbox-key flow (`is_agent_placeholder` + `claim_code` already in schema) means agent-only signups are rate-limited at the sandbox key level and cannot burn quota indefinitely without claiming.
 - Snapshots + verifications have hard caps (no overage on Free) — caps protect us from cost surprises.
 

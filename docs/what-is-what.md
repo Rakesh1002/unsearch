@@ -31,7 +31,7 @@ unsearch/
 │   ├── sdk-llamaindex/      ←   @unsearch/llamaindex — LlamaIndex retriever.
 │   └── mcp-server/          ←   @unsearch/mcp-server — MCP server (P0 Week 3, npx-runnable).
 │
-├── workers/                 ← Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema, containers.toml.
+├── apps/workers/                 ← Cloudflare Workers edge — Hono router, MCP transport, Durable Objects, D1 schema, containers.toml.
 │
 ├── infra/                   ← Operational config (self-host stack + CF Container sidecars).
 │   ├── nginx/               ←   Reverse-proxy config for self-host TLS termination.
@@ -83,7 +83,7 @@ unsearch/
                                        │
                                        ▼
                        ┌─────────────────────────────────┐
-        Edge           │   workers/   (Hono on Workers)  │  api.unsearch.dev
+        Edge           │   apps/workers/   (Hono on Workers)  │  api.unsearch.dev
                        │   + MCP server at /mcp          │  api.unsearch.dev/mcp
                        │   + Durable Objects (RateLimiter,│
                        │     TopicMonitor, ResearchAgent, │
@@ -115,9 +115,9 @@ Terms that show up in code and docs without being defined.
 
 | Term | What it means here |
 |------|--------------------|
-| **Edge worker** | The Cloudflare Workers script in `workers/`. Fronts every request. |
+| **Edge worker** | The Cloudflare Workers script in `apps/workers/`. Fronts every request. |
 | **Container** | The Cloudflare Containers FastAPI deployment. Source in `backend/app/`, packaged via `backend/Dockerfile.cloudflare`. See ADR-0010. |
-| **DO** | Durable Object. Cloudflare's per-instance stateful actor. We have four — see `workers/src/durable-objects/`. |
+| **DO** | Durable Object. Cloudflare's per-instance stateful actor. We have four — see `apps/workers/src/durable-objects/`. |
 | **KV** | Cloudflare's eventually-consistent key/value store. Used for hot caches (auth, ratelimit, search). |
 | **D1** | Cloudflare's edge SQL database (SQLite dialect). Primary store for users, plans, API keys, audit log, citation envelopes. |
 | **R2** | Cloudflare's object storage (S3-compatible). Stores content-addressable citation snapshots (sha256-keyed). |
@@ -141,13 +141,13 @@ Terms that show up in code and docs without being defined.
 | Read an endpoint's contract | [`API_REFERENCE.md`](./API_REFERENCE.md) or `http://localhost:8000/docs` |
 | See an endpoint's worked example | [`API_EXAMPLES.md`](./API_EXAMPLES.md) |
 | Change request validation | `backend/app/models/requests.py` |
-| Change a route handler at the edge | `workers/src/routes/*.ts` |
+| Change a route handler at the edge | `apps/workers/src/routes/*.ts` |
 | Change a route handler in the Container | `backend/app/api/v1/*.py` |
-| Add a Durable Object | `workers/src/durable-objects/` + binding in `workers/wrangler.toml` |
-| Add a new Cloudflare resource (KV, R2, etc.) | `workers/wrangler.toml` + a Python REST client in `backend/app/services/core/` |
+| Add a Durable Object | `apps/workers/src/durable-objects/` + binding in `apps/workers/wrangler.toml` |
+| Add a new Cloudflare resource (KV, R2, etc.) | `apps/workers/wrangler.toml` + a Python REST client in `backend/app/services/core/` |
 | Tweak Workers AI model selection | `backend/app/services/ai/` + ADR-0004 |
 | Touch the SearXNG engine config | `infra/searxng/settings.yml` |
-| Touch DB schema (edge) | `workers/schema.sql` (D1) |
+| Touch DB schema (edge) | `apps/workers/schema.sql` (D1) |
 | Touch DB schema (origin) | `backend/alembic/versions/*.py` then `make migrate` |
 | Update the dashboard | `apps/web/app/` |
 | Update the public SDK contracts | All three of: `apps/sdk-ts/src/index.ts`, `apps/sdk-py/src/unsearch/client.py`, `apps/sdk-llamaindex/src/index.ts` |
@@ -174,7 +174,7 @@ When the same field crosses a language boundary (e.g., a Python TypedDict that m
 
 When a PR lands, the order of relevant files is usually:
 
-1. `backend/app/api/v1/*.py` or `workers/src/routes/*.ts` — the route handler
+1. `backend/app/api/v1/*.py` or `apps/workers/src/routes/*.ts` — the route handler
 2. `backend/app/services/*` — supporting service code
 3. `apps/sdk-*/` — if the wire format changed, the SDKs follow in lockstep
 4. `docs/API_REFERENCE.md` + `docs/feature-matrix.md` — if the docs are out of date, request changes

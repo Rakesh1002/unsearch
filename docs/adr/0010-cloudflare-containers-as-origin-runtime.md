@@ -14,7 +14,7 @@ Until April 2026, the workable answers were:
 
 1. Run SearXNG + FastAPI on a third-party container host (Railway, Fly, DigitalOcean) and have the Worker proxy to it. Adds an external dependency, hurts the "all-on-Cloudflare" story for ICP-2 buyers, and complicates self-host.
 2. Rewrite the FastAPI backend in TypeScript/Hono running on Workers, replacing SearXNG with direct engine API calls. ~3 months of work, throws away a working 93-endpoint backend, and either reintroduces per-vendor lock-in or attempts to reimplement what SearXNG already does.
-3. Keep the Container service binding in `workers/wrangler.toml` commented out (which is the current state — `wrangler.toml:84-90`) and ship nothing.
+3. Keep the Container service binding in `apps/workers/wrangler.toml` commented out (which is the current state — `wrangler.toml:84-90`) and ship nothing.
 
 **Cloudflare Containers reached General Availability on April 13, 2026.** Per the [Cloudflare Containers docs](https://developers.cloudflare.com/containers/) and the [pricing page](https://developers.cloudflare.com/containers/pricing/), the GA brings three properties that change the trade-off:
 
@@ -26,13 +26,13 @@ Active-CPU billing is the critical property. SearXNG idle = ~$0. SearXNG handlin
 
 ## Decision
 
-UnSearch's origin runtime is **Cloudflare Containers**. The FastAPI backend (`app/`) and the SearXNG sidecar run together as a Container deployment, reachable from the Hono Worker edge (`workers/`) via service binding.
+UnSearch's origin runtime is **Cloudflare Containers**. The FastAPI backend (`app/`) and the SearXNG sidecar run together as a Container deployment, reachable from the Hono Worker edge (`apps/workers/`) via service binding.
 
 Practical implementation:
 
 - `backend/Dockerfile.cloudflare` packages FastAPI + SearXNG together (supervisord-managed) or as adjacent containers wired via internal DNS. The two-container topology is preferred long-term for independent scaling.
 - `wrangler.toml` (root) declares the Container with active-CPU billing.
-- `workers/wrangler.toml:84-90` Container service binding is uncommented; Worker requests resolve to the Container by hostname.
+- `apps/workers/wrangler.toml:84-90` Container service binding is uncommented; Worker requests resolve to the Container by hostname.
 - Hardcoded `localhost` URLs in `backend/app/config.py:31,37,47,79,140` are replaced with env-driven container-internal DNS.
 - Hosted and self-host topologies use identical Docker images; self-host customers `wrangler containers deploy` from their forked repo.
 
