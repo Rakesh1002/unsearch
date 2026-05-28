@@ -19,18 +19,16 @@ This document contains step-by-step procedures for handling common operational s
 
 ## Emergency Contacts
 
-| Role              | Name           | Contact             | Escalation Time |
-| ----------------- | -------------- | ------------------- | --------------- |
-| Primary On-Call   | Rotation       | PagerDuty           | Immediate       |
-| Secondary On-Call | Rotation       | PagerDuty           | 5 minutes       |
-| Engineering Lead  | John Doe       | +1-555-0100         | 15 minutes      |
-| Platform Team     | Platform Slack | #platform-oncall    | 10 minutes      |
-| Database Admin    | Jane Smith     | +1-555-0101         | For DB issues   |
-| Security Team     | Security       | #security-incidents | For breaches    |
+| Role              | Name                | Contact             | Escalation Time |
+| ----------------- | ------------------- | ------------------- | --------------- |
+| Primary On-Call   | _to be assigned_    | _your paging tool_  | Immediate       |
+| Secondary On-Call | _to be assigned_    | _your paging tool_  | 5 minutes       |
+| Engineering Lead  | _to be assigned_    | _email/Slack DM_    | 15 minutes      |
+| Platform Team     | _to be assigned_    | _team channel_      | 10 minutes      |
+| Database Admin    | _to be assigned_    | _email/Slack DM_    | For DB issues   |
+| Security Team     | _to be assigned_    | _security channel_  | For breaches    |
 
-**PagerDuty**: https://UnSearch.pagerduty.com  
-**Status Page**: https://status.UnSearch.com  
-**War Room**: Zoom: https://zoom.us/j/UnSearch-incident
+> Fill in the rows above for your deployment. Examples follow as a template only; replace with your own paging tool, status page, and incident-bridge URLs before relying on this runbook.
 
 ---
 
@@ -48,15 +46,15 @@ This document contains step-by-step procedures for handling common operational s
 
 ```bash
 # 1. Check service status
-docker ps | grep UnSearch-api
+docker ps | grep unsearch-api
 kubectl get pods -n production | grep api
 
 # 2. Check recent logs
-docker logs --tail 100 UnSearch-api
+docker logs --tail 100 unsearch-api
 kubectl logs -n production deployment/api --tail=100
 
 # 3. Check system resources
-docker stats UnSearch-api
+docker stats unsearch-api
 kubectl top pods -n production
 
 # 4. Check dependencies
@@ -371,7 +369,7 @@ docker-compose restart api
 ./scripts/backup.sh
 
 # 3. Deploy to canary (10% traffic)
-kubectl set image deployment/api api=UnSearch:$VERSION -n production
+kubectl set image deployment/api api=ghcr.io/rakesh1002/unsearch:$VERSION -n production
 kubectl rollout status deployment/api -n production
 
 # 4. Monitor canary metrics (5 minutes)
@@ -379,13 +377,13 @@ sleep 300
 ./scripts/check-canary-metrics.sh || (kubectl rollout undo deployment/api -n production && exit 1)
 
 # 5. Full deployment
-kubectl set image deployment/api api=UnSearch:$VERSION -n production --all
+kubectl set image deployment/api api=ghcr.io/rakesh1002/unsearch:$VERSION -n production --all
 
 # 6. Verify deployment
 ./scripts/post-deploy-check.sh
 
 # 7. Update status page
-curl -X POST https://status.UnSearch.com/api/incidents \
+curl -X POST $STATUS_PAGE_URL/api/incidents \
   -d '{"status": "resolved", "message": "Deployment completed successfully"}'
 ```
 
@@ -433,7 +431,7 @@ kubectl rollout undo deployment/api --to-revision=42 -n production
 kubectl rollout status deployment/api -n production
 
 # 4. Check application health
-curl http://api.UnSearch.com/health
+curl http://api.unsearch.dev/health
 ```
 
 ### Database Migration Rollback
@@ -676,24 +674,25 @@ psql -c "EXPLAIN ANALYZE SELECT ..."
 redis-cli MEMORY DOCTOR
 
 # Network debugging
-tcpdump -i any -w capture.pcap host api.UnSearch.com
+tcpdump -i any -w capture.pcap host api.unsearch.dev
 
 # Process monitoring
-htop -p $(pgrep -f UnSearch)
+htop -p $(pgrep -f uvicorn)
 ```
 
 ### Environment URLs
 
-| Environment | API URL                              | Admin URL                              | Monitoring                               |
-| ----------- | ------------------------------------ | -------------------------------------- | ---------------------------------------- |
-| Production  | https://api.UnSearch.com         | https://admin.UnSearch.com         | https://grafana.UnSearch.com         |
-| Staging     | https://staging-api.UnSearch.com | https://staging-admin.UnSearch.com | https://staging-grafana.UnSearch.com |
-| Development | http://localhost:8000                | http://localhost:8000/admin            | http://localhost:3000                    |
+| Environment | API URL                       | Admin URL                       | Monitoring                  |
+| ----------- | ----------------------------- | ------------------------------- | --------------------------- |
+| Production  | https://api.unsearch.dev      | _your admin URL_                | _your Grafana URL_          |
+| Staging     | _your staging API URL_        | _your staging admin URL_        | _your staging Grafana URL_  |
+| Development | http://localhost:8000         | http://localhost:8000/admin     | http://localhost:3000       |
 
 ### Support Resources
 
-- **Documentation**: https://docs.UnSearch.com
-- **API Status**: https://status.UnSearch.com
-- **Internal Wiki**: https://wiki.UnSearch.internal
-- **Slack**: #UnSearch-ops
-- **JIRA**: https://UnSearch.atlassian.net
+- **Documentation**: https://docs.unsearch.dev
+- **Repository**: https://github.com/Rakesh1002/unsearch
+- **API Status**: _your status page URL_
+- **Internal Wiki**: _your wiki URL_
+- **Chat**: _your team channel_
+- **Issue Tracker**: _your tracker URL (Linear/Jira/GitHub Issues)_

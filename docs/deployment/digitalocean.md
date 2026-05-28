@@ -149,7 +149,7 @@ LOG_LEVEL=INFO
 SECRET_KEY="<run: openssl rand -hex 32>"
 
 # Database (will be created by Docker Compose)
-DATABASE_URL=postgresql://unsearch:unsearch_password@postgres:5432/unsearch
+DATABASE_URL=postgresql://unsearch:<YOUR_DB_PASSWORD>@postgres:5432/unsearch
 REDIS_URL=redis://redis:6379
 
 # Internal services

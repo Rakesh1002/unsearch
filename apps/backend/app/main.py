@@ -118,8 +118,8 @@ app = FastAPI(
     description="Privacy-respecting web search and scraping API powered by SearXNG and BeautifulSoup4",
     contact={
         "name": "UnSearch API",
-        "url": "https://github.com/UnSearch/api",
-        "email": "support@UnSearch.io"
+        "url": "https://github.com/Rakesh1002/unsearch",
+        "email": "support@unsearch.dev"
     },
     license_info={
         "name": "AGPL-3.0",
@@ -156,7 +156,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 if settings.environment == "production":
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*.UnSearch.io", "localhost"]
+        allowed_hosts=["*.unsearch.dev", "localhost"]
     )
 
 

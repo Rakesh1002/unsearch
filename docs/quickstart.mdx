@@ -7,8 +7,8 @@ description: 'Get started with UnSearch API in under 5 minutes'
 
 Before you begin, you'll need:
 
-1. An UnSearch account - [Sign up here](https://app.unsearch.ai/auth/register)
-2. An API key - Generate one from your [dashboard](https://app.unsearch.ai/dashboard/api-keys)
+1. An UnSearch account - [Sign up here](https://app.unsearch.dev/auth/register)
+2. An API key - Generate one from your [dashboard](https://app.unsearch.dev/dashboard/api-keys)
 
 ## Installation
 
@@ -35,7 +35,7 @@ Let's perform a simple web search:
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.unsearch.ai/api/v1/search" \
+curl -X POST "https://api.unsearch.dev/api/v1/search" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -48,7 +48,7 @@ curl -X POST "https://api.unsearch.ai/api/v1/search" \
 import requests
 
 response = requests.post(
-    "https://api.unsearch.ai/api/v1/search",
+    "https://api.unsearch.dev/api/v1/search",
     headers={
         "Authorization": "Bearer YOUR_API_KEY",
         "Content-Type": "application/json"
@@ -67,7 +67,7 @@ print(results)
 const axios = require('axios');
 
 const response = await axios.post(
-  'https://api.unsearch.ai/api/v1/search',
+  'https://api.unsearch.dev/api/v1/search',
   {
     query: 'artificial intelligence trends 2024',
     max_results: 5
@@ -92,7 +92,7 @@ To get the actual content from search results:
 <CodeGroup>
 
 ```bash cURL
-curl -X POST "https://api.unsearch.ai/api/v1/search" \
+curl -X POST "https://api.unsearch.dev/api/v1/search" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -108,7 +108,7 @@ curl -X POST "https://api.unsearch.ai/api/v1/search" \
 
 ```python Python
 response = requests.post(
-    "https://api.unsearch.ai/api/v1/search",
+    "https://api.unsearch.dev/api/v1/search",
     headers={
         "Authorization": "Bearer YOUR_API_KEY",
         "Content-Type": "application/json"
@@ -127,7 +127,7 @@ response = requests.post(
 
 ```javascript Node.js
 const response = await axios.post(
-  'https://api.unsearch.ai/api/v1/search',
+  'https://api.unsearch.dev/api/v1/search',
   {
     query: 'machine learning tutorials',
     scrape_results: true,
@@ -262,4 +262,4 @@ rankings = client.search(
 
 - Check our [API Reference](/api-reference/introduction) for detailed documentation
 - Join our [Discord community](https://discord.gg/unsearch)
-- Email us at [support@unsearch.io](mailto:support@unsearch.io)
+- Email us at [support@unsearch.dev](mailto:support@unsearch.dev)

@@ -325,7 +325,7 @@ try {
 - 📧 Email: support@unsearch.dev
 - 💬 Discord: [Join community](https://discord.gg/unsearch)
 - 📖 Docs: [docs.unsearch.dev](https://docs.unsearch.dev)
-- 🐛 Issues: [GitHub](https://github.com/rakesh1002/unsearch/issues)
+- 🐛 Issues: [GitHub](https://github.com/Rakesh1002/unsearch/issues)
 
 ---
 

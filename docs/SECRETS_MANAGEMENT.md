@@ -572,6 +572,6 @@ vault operator unseal
 
 For security concerns or questions:
 
-- Security Team: security@UnSearch.com
-- On-call: Use PagerDuty
-- Slack: #security-alerts
+- Security contact: security@unsearch.dev
+- On-call: _your paging tool_
+- Chat: _your security channel_

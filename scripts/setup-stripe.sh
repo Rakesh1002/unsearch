@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Setup Stripe for the SearchScrape API
+# Setup Stripe for the UnSearch API
 # This script creates products, prices, and configures webhooks
 
 set -e  # Exit on error
@@ -115,7 +115,7 @@ log_info "Free plan doesn't require Stripe setup"
 
 # Pro Plan - $20/month
 PRO_RESULT=$(create_product \
-    "SearchScrape Pro" \
+    "UnSearch Pro" \
     "Unlimited searches and scrapes with priority support" \
     20 \
     "month" \
@@ -126,7 +126,7 @@ PRO_PRICE_ID=$(echo $PRO_RESULT | cut -d':' -f2)
 
 # Enterprise Plan - $100/month (optional)
 ENTERPRISE_RESULT=$(create_product \
-    "SearchScrape Enterprise" \
+    "UnSearch Enterprise" \
     "Custom limits, dedicated support, and SLA" \
     100 \
     "month" \
@@ -164,7 +164,7 @@ log_info "Configuring Customer Portal"
 log_info "========================================="
 
 stripe billing_portal configurations create \
-    --business-profile[headline]="Manage your SearchScrape subscription" \
+    --business-profile[headline]="Manage your UnSearch subscription" \
     --business-profile[privacy-policy-url]="https://yourdomain.com/privacy" \
     --business-profile[terms-of-service-url]="https://yourdomain.com/terms" \
     --features[customer-update][enabled]=true \

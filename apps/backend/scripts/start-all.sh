@@ -24,7 +24,7 @@ export CORS_METHODS=${CORS_METHODS:-'["GET","POST","PUT","DELETE","OPTIONS"]'}
 export CORS_HEADERS=${CORS_HEADERS:-'["*"]'}
 
 # 1) Start SearXNG via Docker if not already running
-if ! docker ps --format '{{.Names}}' | grep -q '^UnQuest-searxng$'; then
+if ! docker ps --format '{{.Names}}' | grep -q '^unsearch-searxng$'; then
 	echo "🐳 Starting SearXNG..."
 	docker compose up -d searxng
 fi
@@ -34,7 +34,7 @@ SEARX_ATTEMPTS=30
 until curl -fsS "${SEARXNG_URL%/}/healthz" >/dev/null 2>&1 || [ $SEARX_ATTEMPTS -le 0 ]; do
 	SEARX_ATTEMPTS=$((SEARX_ATTEMPTS-1))
 	sleep 2
-	docker ps --format '{{.Names}}: {{.Status}}' | grep UnQuest-searxng || true
+	docker ps --format '{{.Names}}: {{.Status}}' | grep unsearch-searxng || true
 	echo -n "."
 
 done

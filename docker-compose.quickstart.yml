@@ -19,7 +19,7 @@ services:
       - ENVIRONMENT=production
       - SEARXNG_URL=http://searxng:8080
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://unsearch:unsearch123@postgres:5432/unsearch
+      - DATABASE_URL=postgresql://unsearch:${POSTGRES_PASSWORD:-changeme}@postgres:5432/unsearch
       - LOG_LEVEL=INFO
       - WORKERS=2
     depends_on:
@@ -80,7 +80,7 @@ services:
     environment:
       POSTGRES_DB: unsearch
       POSTGRES_USER: unsearch
-      POSTGRES_PASSWORD: unsearch123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     networks:
       - unsearch
     restart: unless-stopped

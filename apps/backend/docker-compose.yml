@@ -3,7 +3,7 @@ version: '3.8'
 services:
   api:
     build: .
-    container_name: UnQuest
+    container_name: unsearch-api
     ports:
       - "8000:8000"
     environment:
@@ -22,7 +22,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - UnQuest-net
+      - unsearch-net
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -35,7 +35,7 @@ services:
 
   searxng:
     image: searxng/searxng:latest
-    container_name: UnQuest-searxng
+    container_name: unsearch-searxng
     ports:
       - "8080:8080"
     environment:
@@ -44,7 +44,7 @@ services:
     volumes:
       - ./searxng:/etc/searxng:rw
     networks:
-      - UnQuest-net
+      - unsearch-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
       interval: 30s
@@ -62,7 +62,7 @@ services:
   # Redis service disabled - using Upstash Redis cloud service
   # redis:
   #   image: redis:7-alpine
-  #   container_name: UnQuest-redis
+  #   container_name: unsearch-redis
   #   ports:
   #     - "6379:6379"
   #   command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -79,20 +79,20 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: UnQuest-postgres
+    container_name: unsearch-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: UnQuest
-      POSTGRES_USER: UnQuest
-      POSTGRES_PASSWORD: UnQuest123
+      POSTGRES_DB: unsearch
+      POSTGRES_USER: unsearch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - UnQuest-net
+      - unsearch-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U UnQuest"]
+      test: ["CMD-SHELL", "pg_isready -U unsearch"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -100,7 +100,7 @@ services:
 
   celery-worker:
     build: .
-    container_name: UnQuest-celery-worker
+    container_name: unsearch-celery-worker
     command: celery -A app.workers.tasks worker --loglevel=info --concurrency=4
     environment:
       - SEARXNG_URL=http://searxng:8080
@@ -113,14 +113,14 @@ services:
       - postgres
       - searxng
     networks:
-      - UnQuest-net
+      - unsearch-net
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
 
   celery-beat:
     build: .
-    container_name: UnQuest-celery-beat
+    container_name: unsearch-celery-beat
     command: celery -A app.workers.tasks beat --loglevel=info
     environment:
       - REDIS_URL=${REDIS_URL}
@@ -131,12 +131,12 @@ services:
       # - redis  # Using Upstash Redis instead
       - postgres
     networks:
-      - UnQuest-net
+      - unsearch-net
     restart: unless-stopped
 
   flower:
     build: .
-    container_name: UnQuest-flower
+    container_name: unsearch-flower
     command: celery -A app.workers.tasks flower --port=5555
     ports:
       - "5555:5555"
@@ -147,12 +147,12 @@ services:
       # - redis  # Using Upstash Redis instead
       - celery-worker
     networks:
-      - UnQuest-net
+      - unsearch-net
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
-    container_name: UnQuest-nginx
+    container_name: unsearch-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -162,11 +162,11 @@ services:
     depends_on:
       - api
     networks:
-      - UnQuest-net
+      - unsearch-net
     restart: unless-stopped
 
 networks:
-  UnQuest-net:
+  unsearch-net:
     driver: bridge
 
 volumes:

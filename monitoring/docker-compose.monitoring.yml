@@ -26,8 +26,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,redis-datasource
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_AUTH_ANONYMOUS_ENABLED=false
@@ -64,7 +64,7 @@ services:
     ports:
       - "9187:9187"
     environment:
-      DATA_SOURCE_NAME: "postgresql://unsearch:unsearch123@postgres:5432/unsearch?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-unsearch}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-unsearch}?sslmode=disable"
     networks:
       - monitoring-net
       - unsearch-net

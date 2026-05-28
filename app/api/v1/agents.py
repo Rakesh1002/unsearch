@@ -122,7 +122,7 @@ def generate_agent_api_key() -> str:
 
 def get_claim_url(claim_code: str) -> str:
     """Get the full claim URL for a claim code."""
-    base_url = settings.frontend_url or "https://unsearch.ai"
+    base_url = settings.frontend_url or "https://unsearch.dev"
     return f"{base_url}/claim/{claim_code}"
 
 
@@ -230,7 +230,7 @@ async def register_agent(
     daily_reset_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     
     # Create placeholder user
-    placeholder_email = f"agent_{claim_code[:16]}@placeholder.unsearch.ai"
+    placeholder_email = f"agent_{claim_code[:16]}@placeholder.unsearch.dev"
     
     try:
         user = User(
@@ -400,7 +400,7 @@ async def get_agent_status(
         human_owner={
             "email_verified": user.is_verified,
             "can_manage_billing": True,
-            "dashboard_url": f"{settings.frontend_url or 'https://unsearch.ai'}/dashboard"
+            "dashboard_url": f"{settings.frontend_url or 'https://unsearch.dev'}/dashboard"
         }
     )
 
@@ -436,7 +436,7 @@ async def resend_claim_link(
             detail={
                 "error": "already_claimed",
                 "message": "This agent is already claimed. Your human can manage API keys at the dashboard.",
-                "dashboard_url": f"{settings.frontend_url or 'https://unsearch.ai'}/dashboard"
+                "dashboard_url": f"{settings.frontend_url or 'https://unsearch.dev'}/dashboard"
             }
         )
     

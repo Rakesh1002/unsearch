@@ -6,8 +6,8 @@
 
 ```bash
 # Database Configuration
-DATABASE_URL=postgresql://username:password@localhost:5432/unquest
-# Example: postgresql://postgres:postgres@localhost:5432/unquest_db
+DATABASE_URL=postgresql://username:password@localhost:5432/unsearch
+# Example: postgresql://postgres:postgres@localhost:5432/unsearch_db
 
 # Redis Configuration
 REDIS_URL=redis://localhost:6379
@@ -24,7 +24,7 @@ ENVIRONMENT=development  # Options: development, staging, production
 DEBUG=true  # Set to false in production
 
 # API Configuration
-APP_NAME=UnQuest API
+APP_NAME=UnSearch API
 VERSION=1.0.0
 API_PREFIX=/api/v1
 ```
@@ -40,10 +40,10 @@ STRIPE_PRO_PRICE_ID=price_...  # Create in Stripe Dashboard
 
 # SearXNG Configuration
 SEARXNG_URL=http://localhost:8080  # Default if using Docker
-SEARXNG_SECRET=ultrasecretkey  # Must match searxng/settings.yml
+SEARXNG_SECRET=change-me-with-openssl-rand-hex-32  # Must match searxng/settings.yml
 
 # CORS Configuration
-ALLOWED_ORIGINS=["http://localhost:3000","https://app.unquest.ai"]
+ALLOWED_ORIGINS=["http://localhost:3000","https://app.unsearch.dev"]
 CORS_CREDENTIALS=true
 CORS_METHODS=["GET","POST","PUT","DELETE","OPTIONS"]
 CORS_HEADERS=["*"]
@@ -65,9 +65,9 @@ SENTRY_DSN=https://...@sentry.io/...  # Optional error tracking
 # Email Configuration (For notifications)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
+SMTP_USER=your-email@example.com
 SMTP_PASSWORD=your-app-password
-SMTP_FROM=noreply@unquest.ai
+SMTP_FROM=noreply@unsearch.dev
 
 # External Services
 OPENAI_API_KEY=sk-...  # If using AI features
@@ -88,11 +88,11 @@ MAX_CACHE_SIZE=1000
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8000
-# Production: https://api.unquest.ai or your Railway URL
+# Production: https://api.unsearch.dev or your Railway URL
 
 # App Configuration
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-# Production: https://app.unquest.ai or your Vercel URL
+# Production: https://app.unsearch.dev or your Vercel URL
 ```
 
 ### Optional Variables
@@ -118,7 +118,7 @@ SENTRY_ORG=your-org
 SENTRY_PROJECT=your-project
 
 # Support
-NEXT_PUBLIC_SUPPORT_EMAIL=support@unquest.ai
+NEXT_PUBLIC_SUPPORT_EMAIL=support@unsearch.dev
 NEXT_PUBLIC_DISCORD_INVITE=https://discord.gg/...
 ```
 
@@ -128,7 +128,7 @@ NEXT_PUBLIC_DISCORD_INVITE=https://discord.gg/...
 services:
   api:
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/unquest
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/unsearch
       - REDIS_URL=redis://redis:6379
       - SEARXNG_URL=http://searxng:8080
       - SECRET_KEY=${SECRET_KEY}
@@ -139,7 +139,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=unquest
+      - POSTGRES_DB=unsearch
 
   redis:
     # No environment variables needed for basic setup
@@ -148,7 +148,7 @@ services:
 
   searxng:
     environment:
-      - SEARXNG_SECRET=ultrasecretkey
+      - SEARXNG_SECRET=change-me-with-openssl-rand-hex-32
       - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
 ```
 
@@ -260,7 +260,7 @@ echo "✅ All required environment variables are set!"
 ```bash
 ENVIRONMENT=development
 DEBUG=true
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unquest_dev
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unsearch_dev
 ALLOWED_ORIGINS=["http://localhost:3000"]
 ```
 
@@ -269,8 +269,8 @@ ALLOWED_ORIGINS=["http://localhost:3000"]
 ```bash
 ENVIRONMENT=staging
 DEBUG=false
-DATABASE_URL=postgresql://user:pass@staging-db.railway.app:5432/unquest_staging
-ALLOWED_ORIGINS=["https://staging.unquest.ai"]
+DATABASE_URL=postgresql://user:pass@staging-db.example.com:5432/unsearch_staging
+ALLOWED_ORIGINS=["https://staging.unsearch.dev"]
 ```
 
 ### Production
@@ -278,6 +278,6 @@ ALLOWED_ORIGINS=["https://staging.unquest.ai"]
 ```bash
 ENVIRONMENT=production
 DEBUG=false
-DATABASE_URL=postgresql://user:pass@prod-db.railway.app:5432/unquest_prod?sslmode=require
-ALLOWED_ORIGINS=["https://app.unquest.ai"]
+DATABASE_URL=postgresql://user:pass@prod-db.example.com:5432/unsearch_prod?sslmode=require
+ALLOWED_ORIGINS=["https://app.unsearch.dev"]
 ```
