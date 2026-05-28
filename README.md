@@ -62,11 +62,12 @@ docker compose -f docker-compose.quickstart.yml up -d
 # Before (Tavily)
 from tavily import TavilyClient
 client = TavilyClient(api_key="tvly-...")
+hits = client.search("query")
 
-# After (UnSearch) - just change the import
-from unsearch import UnSearchClient
-client = UnSearchClient(api_key="uns-...")
-response = client.search("query")
+# After (UnSearch) — install with `pip install unsearch`
+from unsearch import UnSearch
+client = UnSearch(api_key="uns_...")
+hits = client.tavily_search({"query": "query"})
 ```
 
 ### Search API
@@ -243,12 +244,13 @@ pytest tests/integration/ -v
 - [x] Fact verification
 - [x] Cloudflare Workers AI integration
 - [x] 15+ AI model support
+- [x] TypeScript SDK (`@unsearch/sdk`)
+- [x] Python SDK (`pip install unsearch`)
 
 ### In Progress
 - [ ] Full test coverage
 - [ ] Production deployment guides
-- [ ] JavaScript SDK
-- [ ] Python SDK
+- [ ] MCP server (TypeScript)
 
 ### Planned
 - [ ] Enterprise SSO
