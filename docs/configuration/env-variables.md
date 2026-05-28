@@ -1,6 +1,6 @@
 # Environment Variables Configuration
 
-## Backend (FastAPI) - `apps/backend/.env`
+## Backend (FastAPI) - `.env`
 
 ### Required Variables
 
