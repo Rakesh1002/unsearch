@@ -11,8 +11,8 @@ from redis.asyncio.connection import ConnectionPool
 import orjson
 
 from app.config import get_settings
-from app.models.responses import SearchScrapeResponse
-from app.models.requests import SearchScrapeRequest
+from app.models.responses import UnSearchResponse
+from app.models.requests import UnSearchRequest
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -65,7 +65,7 @@ class CacheService:
             await self._pool.disconnect()
             self._pool = None
             
-    async def get_search_results(self, cache_key: str) -> Optional[SearchScrapeResponse]:
+    async def get_search_results(self, cache_key: str) -> Optional[UnSearchResponse]:
         """
         Retrieve search results from cache.
         
@@ -73,7 +73,7 @@ class CacheService:
             cache_key: Cache key for the search results
             
         Returns:
-            Cached SearchScrapeResponse or None if not found
+            Cached UnSearchResponse or None if not found
         """
         if not self._client:
             await self.initialize()
@@ -101,7 +101,7 @@ class CacheService:
             await self._increment_hit_count(cache_key)
             
             # Convert back to response model
-            response = SearchScrapeResponse(**data)
+            response = UnSearchResponse(**data)
             response.cached = True
             response.cache_key = cache_key
             
@@ -115,7 +115,7 @@ class CacheService:
     async def set_search_results(
         self, 
         cache_key: str, 
-        data: SearchScrapeResponse, 
+        data: UnSearchResponse, 
         ttl: Optional[int] = None
     ):
         """
@@ -123,7 +123,7 @@ class CacheService:
         
         Args:
             cache_key: Cache key for the search results
-            data: SearchScrapeResponse to cache
+            data: UnSearchResponse to cache
             ttl: Time to live in seconds (uses default if not specified)
         """
         if not self._client:
@@ -134,7 +134,7 @@ class CacheService:
             ttl = ttl or self.default_ttl
             
             # Serialize data
-            serialized = orjson.dumps(data.dict())
+            serialized = orjson.dumps(data.model_dump(mode="json"))
             
             # Compress if enabled
             if self.compression_enabled:
@@ -199,12 +199,12 @@ class CacheService:
         except Exception as e:
             logger.error("cache_invalidate_error", pattern=pattern, error=str(e))
             
-    def generate_cache_key(self, request: SearchScrapeRequest) -> str:
+    def generate_cache_key(self, request: UnSearchRequest) -> str:
         """
         Generate deterministic cache key from request parameters.
         
         Args:
-            request: SearchScrapeRequest object
+            request: UnSearchRequest object
             
         Returns:
             Cache key string
@@ -298,7 +298,7 @@ class CacheService:
     async def _store_cache_metadata(
         self, 
         cache_key: str, 
-        data: SearchScrapeResponse, 
+        data: UnSearchResponse, 
         ttl: int
     ):
         """Store cache metadata for monitoring and analytics."""
