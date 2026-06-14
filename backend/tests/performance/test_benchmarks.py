@@ -13,7 +13,7 @@ import statistics
 import random
 import os
 
-from app.services.cache import CacheService
+from app.services.core.cache import CacheService
 from app.services.scraping import ContentScrapingService
 from app.services.searxng import SearXNGService
 from app.models.requests import UnSearchRequest, ScrapingConfig
