@@ -17,6 +17,7 @@ import { proxyRoutes } from "./routes/proxy.js"
 import { ragRoutes } from "./routes/rag.js"
 import { searchRoutes } from "./routes/search.js"
 import { verifyRoutes } from "./routes/verify.js"
+import mcpApp from "./mcp/server.js"
 import { handleQueueBatch } from "./queue-consumer.js"
 import { handleScheduled } from "./scheduled.js"
 
@@ -64,6 +65,7 @@ v1.route("/billing", billingRoutes)
 v1.route("/", proxyRoutes)
 
 app.route("/api/v1", v1)
+app.route("/mcp", mcpApp)
 
 app.notFound((c) =>
   c.json(
