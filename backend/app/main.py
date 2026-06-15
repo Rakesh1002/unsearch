@@ -18,7 +18,7 @@ from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.config import get_settings
 from app.api.v1 import search, auth, billing, rag, agent, enhanced_search
-from app.api.v1 import knowledge, monitor, verify, neural, agents
+from app.api.v1 import knowledge, monitor, verify, neural, agents, audit
 from app.api.v2 import advanced_endpoints
 from app.models.responses import ErrorResponse
 from app.services.core.database import get_database_service
@@ -313,6 +313,12 @@ app.include_router(
 # Fact Verification (Groundbreaking)
 app.include_router(
     verify.router,
+    prefix=settings.api_prefix
+)
+
+# Per-API-key Audit Log
+app.include_router(
+    audit.router,
     prefix=settings.api_prefix
 )
 

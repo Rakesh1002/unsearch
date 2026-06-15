@@ -12,6 +12,7 @@ from app.services.core.searxng import get_searxng_service, SearXNGService
 from app.services.scraping.scraping import get_scraping_service, ContentScrapingService
 from app.services.core.cache import get_cache_service, CacheService
 from app.services.core.database import get_database_service, DatabaseService
+from app.services.citation_store import get_citation_store, CitationStore
 from app.config import get_settings, Settings
 import structlog
 
@@ -64,6 +65,11 @@ async def get_scraper() -> ContentScrapingService:
 async def get_cache() -> CacheService:
     """Get cache service instance."""
     return await get_cache_service()
+
+
+async def get_citation_store_dep() -> CitationStore:
+    """Get citation store instance."""
+    return await get_citation_store()
 
 
 async def verify_api_key(
@@ -379,4 +385,5 @@ DatabaseDep = Annotated[DatabaseService, Depends(get_db_service)]
 SearxngDep = Annotated[SearXNGService, Depends(get_searxng)]
 ScraperDep = Annotated[ContentScrapingService, Depends(get_scraper)]
 CacheDep = Annotated[CacheService, Depends(get_cache)]
+CitationStoreDep = Annotated[CitationStore, Depends(get_citation_store_dep)]
 ClientInfoDep = Annotated[dict, Depends(get_client_info)]

@@ -547,7 +547,7 @@ async def delete_corpus(
                 detail=f"Corpus '{corpus_id}' not found"
             )
             
-        rag_service.vector_store.delete_corpus(corpus_id)
+        await rag_service.vector_store.delete_corpus(corpus_id)
         
         return {
             "message": f"Corpus '{corpus_id}' deleted successfully",

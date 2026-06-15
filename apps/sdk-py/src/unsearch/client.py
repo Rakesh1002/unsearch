@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, AsyncIterator, Iterator, Mapping, Optional
+from typing import Any, AsyncIterator, Iterator, Literal, Mapping, Optional
 from urllib.parse import quote
 
 import httpx
@@ -10,6 +10,8 @@ import httpx
 from ._version import __version__
 from .errors import UnSearchError
 from .types import (
+    ExtractRequest,
+    ExtractResponse,
     HighlightsRequest,
     HighlightsResponse,
     IngestRequest,
@@ -104,6 +106,9 @@ class UnSearch:
     def search(self, request: SearchRequest) -> SearchResponse:
         return self._request("POST", "/api/v1/search", json=request)
 
+    def extract(self, request: ExtractRequest) -> ExtractResponse:
+        return self._request("POST", "/api/v1/agent/extract", json=request)
+
     def stream_search(self, request: SearchRequest) -> Iterator[StreamEvent]:
         with self._client.stream(
             "POST", "/api/v1/search/stream", json=request
@@ -183,6 +188,49 @@ class UnSearch:
     def verify_source(self, url: str) -> Mapping[str, Any]:
         return self._request("POST", "/api/v1/verify/source", json={"url": url})
 
+    def verify_citation(
+        self,
+        *,
+        url: str,
+        snapshot_key: Optional[str] = None,
+        content_sha256: Optional[str] = None,
+        include_live_content: bool = False,
+    ) -> Mapping[str, Any]:
+        body: dict[str, Any] = {"url": url, "include_live_content": include_live_content}
+        if snapshot_key is not None:
+            body["snapshot_key"] = snapshot_key
+        if content_sha256 is not None:
+            body["content_sha256"] = content_sha256
+        return self._request("POST", "/api/v1/verify/citation", json=body)
+
+    def audit(
+        self,
+        *,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Mapping[str, Any]:
+        params = {"limit": str(limit), "offset": str(offset)}
+        if start_date is not None:
+            params["start_date"] = start_date
+        if end_date is not None:
+            params["end_date"] = end_date
+        return self._request("GET", "/api/v1/audit", json=params)
+
+    def research(
+        self,
+        query: str,
+        *,
+        depth: Optional[Literal["quick", "standard", "deep", "comprehensive"]] = None,
+    ) -> ResearchSession:
+        depth_map = {"quick": 1, "standard": 2, "deep": 3, "comprehensive": 4}
+        body: dict[str, Any] = {"query": query}
+        if depth is not None:
+            body["depth"] = depth_map.get(depth, 2)
+        response = self._request("POST", "/api/v1/agent/research", json=body)
+        return self.poll_research(response["session_id"])
+
     # ----- Topic monitoring -----
 
     def create_monitor(self, request: MonitorRequest) -> Mapping[str, Any]:
@@ -237,6 +285,9 @@ class AsyncUnSearch:
 
     async def search(self, request: SearchRequest) -> SearchResponse:
         return await self._request("POST", "/api/v1/search", json=request)
+
+    async def extract(self, request: ExtractRequest) -> ExtractResponse:
+        return await self._request("POST", "/api/v1/agent/extract", json=request)
 
     async def stream_search(self, request: SearchRequest) -> AsyncIterator[StreamEvent]:
         async with self._client.stream(
@@ -322,6 +373,49 @@ class AsyncUnSearch:
 
     async def verify_source(self, url: str) -> Mapping[str, Any]:
         return await self._request("POST", "/api/v1/verify/source", json={"url": url})
+
+    async def verify_citation(
+        self,
+        *,
+        url: str,
+        snapshot_key: Optional[str] = None,
+        content_sha256: Optional[str] = None,
+        include_live_content: bool = False,
+    ) -> Mapping[str, Any]:
+        body: dict[str, Any] = {"url": url, "include_live_content": include_live_content}
+        if snapshot_key is not None:
+            body["snapshot_key"] = snapshot_key
+        if content_sha256 is not None:
+            body["content_sha256"] = content_sha256
+        return await self._request("POST", "/api/v1/verify/citation", json=body)
+
+    async def audit(
+        self,
+        *,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Mapping[str, Any]:
+        params = {"limit": str(limit), "offset": str(offset)}
+        if start_date is not None:
+            params["start_date"] = start_date
+        if end_date is not None:
+            params["end_date"] = end_date
+        return await self._request("GET", "/api/v1/audit", json=params)
+
+    async def research(
+        self,
+        query: str,
+        *,
+        depth: Optional[Literal["quick", "standard", "deep", "comprehensive"]] = None,
+    ) -> ResearchSession:
+        depth_map = {"quick": 1, "standard": 2, "deep": 3, "comprehensive": 4}
+        body: dict[str, Any] = {"query": query}
+        if depth is not None:
+            body["depth"] = depth_map.get(depth, 2)
+        response = await self._request("POST", "/api/v1/agent/research", json=body)
+        return await self.poll_research(response["session_id"])
 
     # ----- Topic monitoring -----
 

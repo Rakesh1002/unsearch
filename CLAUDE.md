@@ -29,6 +29,7 @@
 
 ### Prerequisites
 - Python 3.11+
+- Node.js 20+ and pnpm
 - Docker & Docker Compose
 - Redis (or use Docker)
 - PostgreSQL 15 (or use Docker)
@@ -46,7 +47,8 @@ cp .env.example .env
 # Start all services
 docker compose up -d
 
-# Or run locally
+# Or run the backend locally
+cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -57,7 +59,8 @@ API docs available at `http://localhost:8000/docs`
 
 ### Running Tests
 ```bash
-# All tests
+# Backend tests (run from backend/)
+cd backend
 pytest
 
 # Unit tests with coverage
@@ -68,6 +71,12 @@ pytest tests/integration/ -v
 
 # Performance benchmarks
 pytest tests/performance/ -v
+
+# Workers / SDK tests (run from repo root)
+pnpm install
+pnpm --filter @unsearch/sdk test
+pnpm --filter @unsearch/mcp-server typecheck
+pnpm --filter @unsearch/workers test
 ```
 
 ---
@@ -141,31 +150,39 @@ Search the web and optionally scrape content from results.
 
 ```
 unsearch/
-├── app/                    # FastAPI application
-│   ├── api/v1/            # API route handlers
-│   ├── models/            # Pydantic models & SQLAlchemy ORM
-│   ├── services/          # Business logic
-│   │   ├── core/          # Database, cache, search engine
-│   │   ├── search/        # Search service
-│   │   ├── scraping/      # Web scraping
-│   │   ├── extraction/    # Content extraction
-│   │   ├── rag/           # RAG pipeline
-│   │   └── ai/            # AI integration
-│   ├── middleware/        # Custom middleware
-│   ├── utils/             # Utilities
-│   └── workers/           # Celery tasks
-├── alembic/               # Database migrations
-├── tests/                 # Test suite
-│   ├── unit/
-│   ├── integration/
-│   ├── e2e/
-│   └── performance/
-├── scripts/               # Utility scripts
-├── monitoring/            # Prometheus/Grafana configs
+├── backend/                # Python FastAPI backend (single source of truth)
+│   ├── app/               # FastAPI application
+│   │   ├── api/v1/        # API route handlers
+│   │   ├── models/        # Pydantic models & SQLAlchemy ORM
+│   │   ├── services/      # Business logic
+│   │   │   ├── core/      # Database, cache, search engine, Vectorize client
+│   │   │   ├── search/    # Search orchestration
+│   │   │   ├── scraping/  # Web scraping
+│   │   │   ├── rag/       # RAG pipeline
+│   │   │   ├── ai/        # AI integration
+│   │   │   ├── citation_store.py   # Snapshot + envelope creation
+│   │   │   └── citation_signer.py  # HMAC envelope signing
+│   │   ├── middleware/    # Custom middleware
+│   │   ├── utils/         # Utilities
+│   │   └── workers/       # Celery tasks
+│   ├── alembic/           # Database migrations
+│   └── tests/             # Test suite
+├── apps/                  # TypeScript / Python SDK packages (pnpm workspace)
+│   ├── web/               # Next.js dashboard on Cloudflare Workers
+│   ├── sdk-ts/            # @unsearch/sdk
+│   ├── sdk-py/            # unsearch PyPI package
+│   ├── sdk-llamaindex/    # @unsearch/llamaindex retriever
+│   └── mcp-server/        # @unsearch/mcp-server (npx-runnable)
+├── apps/workers/          # Cloudflare Workers edge router
+├── infra/                 # Operational config
+│   ├── nginx/             # Self-host reverse proxy
+│   ├── monitoring/        # Prometheus + Grafana
+│   └── searxng/           # SearXNG config
 ├── docs/                  # Documentation
-├── docker-compose.yml     # Full stack
-├── Dockerfile
-└── requirements.txt
+├── scripts/               # Utility scripts
+├── docker-compose.yml     # Self-host full stack
+├── docker-compose.quickstart.yml
+└── pnpm-workspace.yaml
 ```
 
 ---
@@ -175,8 +192,8 @@ unsearch/
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes and add tests
-4. Run the test suite: `pytest`
-5. Run linting: `black --check app/ tests/ && isort --check-only app/ tests/`
+4. Run the test suite from `backend/`: `cd backend && pytest`
+5. Run linting from `backend/`: `black --check app/ tests/ && isort --check-only app/ tests/`
 6. Submit a pull request
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.

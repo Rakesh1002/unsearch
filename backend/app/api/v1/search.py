@@ -16,11 +16,13 @@ from app.models.responses import (
     SearchResult, SearchMetadata, EnginesListResponse, HealthResponse, ServiceHealth
 )
 from app.api.dependencies import (
-    ApiKeyDep, AuthUserDep, SettingsDep, DatabaseDep, SearxngDep, 
-    ScraperDep, CacheDep, ClientInfoDep, check_search_limit, increment_sandbox_usage
+    ApiKeyDep, AuthUserDep, SettingsDep, DatabaseDep, SearxngDep,
+    ScraperDep, CacheDep, CitationStoreDep, ClientInfoDep, check_search_limit, increment_sandbox_usage
 )
 from app.workers.tasks import process_async_search_scrape
 from app.services.auth_service import track_usage
+from app.services.citation_store import envelope_for_result
+from app.api.v1.audit import record_audit_event
 
 logger = structlog.get_logger(__name__)
 
@@ -38,6 +40,7 @@ async def search_and_scrape(
     searxng: SearxngDep,
     scraper: ScraperDep,
     cache: CacheDep,
+    citation_store: CitationStoreDep,
     client_info: ClientInfoDep
 ):
     """
@@ -60,16 +63,16 @@ async def search_and_scrape(
             cached_response = await cache.get_search_results(cache_key)
             if cached_response:
                 cached_response.request_id = request_id
-                
+
                 # Log request with cached response
                 await db.log_search_request(
                     request_data.dict(),
                     cached_response,
-                    api_key_id,
+                    int(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None,
                     client_info["client_ip"],
                     client_info["user_agent"]
                 )
-                
+
                 return cached_response
                 
         # Handle async mode
@@ -178,8 +181,25 @@ async def search_and_scrape(
                 normalized_result_url = normalize_url(result.url)
                 if normalized_result_url in scraped_map:
                     result.scraped_content = scraped_map[normalized_result_url]
-                    
+
             scraping_time_ms = int((asyncio.get_event_loop().time() - scraping_start) * 1000)
+
+        # Attach signed citation envelopes to every result.
+        api_key_id_str = str(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None
+        for result in search_results:
+            envelope = await envelope_for_result(
+                store=citation_store,
+                url=str(result.url),
+                snippet=result.snippet or "",
+                engine=result.engine,
+                scraped_content=result.scraped_content,
+                api_key_id=api_key_id_str,
+                request_id=request_id,
+            )
+            if envelope:
+                result.citation_envelope = envelope
+                if result.scraped_content:
+                    result.scraped_content.citation_envelope = envelope
         else:
             scraping_time_ms = 0
             
@@ -246,7 +266,17 @@ async def search_and_scrape(
                     scrape_count=scrape_count,
                     engine=request_data.engines[0] if request_data.engines else "searxng"
                 )
-        
+
+        # Log audit event for citation envelopes
+        background_tasks.add_task(
+            record_audit_event,
+            citation_store,
+            api_key_id_str,
+            request_id,
+            "POST /api/v1/search",
+            search_results,
+        )
+
         # If markdown format requested, return text/markdown response with concatenated markdown from scraped contents
         if request_data.output_format == "markdown" and request_data.scrape_content:
             parts = []
@@ -295,6 +325,7 @@ async def batch_search(
     db: DatabaseDep,
     searxng: SearxngDep,
     scraper: ScraperDep,
+    citation_store: CitationStoreDep,
     client_info: ClientInfoDep
 ):
     """
@@ -358,10 +389,25 @@ async def batch_search(
         # Execute searches in parallel
         tasks = [search_single_query(query) for query in request_data.queries]
         search_results = await asyncio.gather(*tasks)
-        
-        # Map results to queries
+
+        # Map results to queries and attach citation envelopes
+        api_key_id_str = str(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None
         for query, query_results in zip(request_data.queries, search_results):
             if query not in errors:
+                for result in query_results:
+                    envelope = await envelope_for_result(
+                        store=citation_store,
+                        url=str(result.url),
+                        snippet=result.snippet or "",
+                        engine=result.engine,
+                        scraped_content=result.scraped_content,
+                        api_key_id=api_key_id_str,
+                        request_id=batch_id,
+                    )
+                    if envelope:
+                        result.citation_envelope = envelope
+                        if result.scraped_content:
+                            result.scraped_content.citation_envelope = envelope
                 results[query] = query_results
                 
         processing_time_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)

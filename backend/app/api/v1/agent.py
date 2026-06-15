@@ -27,9 +27,11 @@ from pydantic import BaseModel, Field, HttpUrl
 import structlog
 
 from app.api.dependencies import (
-    ApiKeyDep, AuthUserDep, SettingsDep, SearxngDep, ScraperDep, DatabaseDep,
+    ApiKeyDep, AuthUserDep, SettingsDep, SearxngDep, ScraperDep, DatabaseDep, CitationStoreDep,
     check_search_limit, check_scrape_limit, increment_sandbox_usage
 )
+from app.services.citation_store import envelope_for_result
+from app.api.v1.audit import record_audit_event
 from app.models.requests import ScrapingConfig
 from app.services.ai.cloudflare_ai import get_cloudflare_ai_service, CFModel
 from app.services.ai.search_pipeline import (
@@ -121,6 +123,9 @@ class AgentSearchRequest(BaseModel):
         }
 
 
+from app.models.citation import CitationEnvelope
+
+
 class AgentSearchResult(BaseModel):
     """Single search result in Tavily format."""
     title: str
@@ -128,6 +133,7 @@ class AgentSearchResult(BaseModel):
     content: str = Field(description="Snippet or full content")
     score: float = Field(description="Relevance score 0-1")
     raw_content: Optional[str] = Field(default=None, description="Full page content if requested")
+    citation_envelope: Optional[CitationEnvelope] = Field(default=None, description="Signed citation envelope for this retrieval")
 
 
 class AgentSearchResponse(BaseModel):
@@ -169,6 +175,7 @@ class ExtractedContent(BaseModel):
     images: Optional[List[str]] = None
     failed: bool = False
     error: Optional[str] = None
+    citation_envelope: Optional[CitationEnvelope] = Field(default=None, description="Signed citation envelope for this extraction")
 
 
 class AgentExtractResponse(BaseModel):
@@ -191,6 +198,7 @@ async def agent_search(
     searxng: SearxngDep,
     scraper: ScraperDep,
     db: DatabaseDep,
+    citation_store: CitationStoreDep,
     x_zero_retention: Optional[str] = Header(default=None, description="Set to 'true' for zero data retention")
 ):
     """
@@ -332,6 +340,7 @@ async def agent_search(
         
         # Build response results from pipeline
         results = []
+        api_key_id_str = str(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None
         for i, source in enumerate(pipeline_result.sources):
             # Ensure content field is populated with best available text
             content_text = ""
@@ -339,7 +348,7 @@ async def agent_search(
                 content_text = source.content[:500]
             elif source.snippet:
                 content_text = source.snippet
-            
+
             result = AgentSearchResult(
                 title=source.title,
                 url=source.url,
@@ -348,6 +357,20 @@ async def agent_search(
                 raw_content=raw_contents.get(source.url) if request.include_raw_content else None
             )
             results.append(result)
+
+        # Attach signed citation envelopes to every result.
+        for result in results:
+            envelope = await envelope_for_result(
+                store=citation_store,
+                url=result.url,
+                snippet=result.content,
+                engine="searxng:aggregate",
+                scraped_content=None,
+                api_key_id=api_key_id_str,
+                request_id=request_id,
+            )
+            if envelope:
+                result.citation_envelope = envelope
         
         # Handle images if requested
         images = []
@@ -392,7 +415,16 @@ async def agent_search(
                     search_count=1,
                     engine="searxng"
                 )
-        
+
+        # Log audit event for citation envelopes
+        await record_audit_event(
+            citation_store,
+            api_key_id_str,
+            request_id,
+            "POST /api/v1/agent/search",
+            results,
+        )
+
         return AgentSearchResponse(
             query=request.query,
             answer=pipeline_result.answer,
@@ -426,6 +458,7 @@ async def agent_extract(
     settings: SettingsDep,
     scraper: ScraperDep,
     db: DatabaseDep,
+    citation_store: CitationStoreDep,
     x_zero_retention: Optional[str] = Header(default=None)
 ):
     """
@@ -501,8 +534,25 @@ async def agent_extract(
                     error="Failed to extract content"
                 )
                 failed_urls.append(url)
-            
+
             results.append(result)
+
+        # Attach signed citation envelopes to successful extractions.
+        api_key_id_str = str(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None
+        for result in results:
+            if result.failed or not result.raw_content:
+                continue
+            envelope = await envelope_for_result(
+                store=citation_store,
+                url=result.url,
+                snippet=result.raw_content[:500],
+                engine="direct-fetch",
+                scraped_content=None,
+                api_key_id=api_key_id_str,
+                request_id=request_id,
+            )
+            if envelope:
+                result.citation_envelope = envelope
         
         response_time = round(time.time() - start_time, 2)
         
@@ -526,7 +576,17 @@ async def agent_extract(
                     user_id=auth_user.user_id,
                     scrape_count=len(request.urls) - len(failed_urls)
                 )
-        
+
+        # Log audit event for citation envelopes
+        api_key_id_str = str(auth_user.api_key_id) if auth_user and auth_user.api_key_id else None
+        await record_audit_event(
+            citation_store,
+            api_key_id_str,
+            request_id,
+            "POST /api/v1/agent/extract",
+            results,
+        )
+
         return AgentExtractResponse(
             results=results,
             failed_urls=failed_urls,

@@ -154,15 +154,16 @@ The envelope does **not** prove:
 
 | Component | Status | Where |
 |---|---|---|
-| Envelope returned inline on `/api/v1/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/search.py:30` + `backend/app/services/citation_store.py` (new) |
-| Envelope returned inline on `/api/v1/agent/search` | ✏️ Shipping Week 2 | `backend/app/api/v1/agent.py:45` |
-| Envelope returned inline on MCP `search` tool | ✏️ Shipping Week 3 | `apps/workers/src/mcp/server.ts` (new) |
-| R2 snapshot store, content-addressable | ✏️ Shipping Week 2 | `backend/app/services/citation_store.py` (new) |
-| HMAC v1 signing | ✏️ Shipping Week 2 | `app/services/citation_signer.py` (new) |
-| `POST /api/v1/verify/citation` (snapshot + live diff) | ✏️ Shipping Week 2 | `backend/app/api/v1/verify.py` |
-| `POST /api/v1/verify/claim` (span-level grading) | ✏️ Shipping Week 2 | `backend/app/api/v1/verify.py` |
-| `GET /api/v1/audit` per-API-key | ✏️ Shipping Week 2 | `backend/app/api/v1/audit.py` (new) |
-| Python + TypeScript SDK envelope verifiers | 📋 Week 4 | `apps/sdk-py`, `apps/sdk-ts` |
+| Envelope returned inline on `/api/v1/search` | ✅ Shipped | `backend/app/api/v1/search.py` + `backend/app/services/citation_store.py` |
+| Envelope returned inline on `/api/v1/agent/search` | ✅ Shipped | `backend/app/api/v1/agent.py` |
+| Envelope returned inline on `/api/v1/agent/extract` | ✅ Shipped | `backend/app/api/v1/agent.py` |
+| Envelope returned inline on MCP `search` / `extract` tools | ✅ Shipped | `apps/workers/src/mcp/server.ts`, `apps/mcp-server/src/index.ts` |
+| R2 / local snapshot store, content-addressable | ✅ Shipped | `backend/app/services/citation_store.py` |
+| HMAC v1 signing | ✅ Shipped | `backend/app/services/citation_signer.py` |
+| `POST /api/v1/verify/citation` (snapshot + live diff) | ✅ Shipped | `backend/app/api/v1/verify.py` |
+| `POST /api/v1/verify/claim` (span-level grading) | ✅ Shipped | `backend/app/api/v1/verify.py` |
+| `GET /api/v1/audit` per-API-key | ✅ Shipped | `backend/app/api/v1/audit.py` |
+| Python + TypeScript SDK envelope verifiers | ✅ Shipped | `apps/sdk-py/src/unsearch/verify.py`, `apps/sdk-ts/src/index.ts` |
 | WACZ export endpoint | 📋 Month 3 | `backend/app/api/v1/audit.py` |
 | BYO storage (S3 / GCS / Azure Blob) | 📋 Month 3 | `backend/app/services/citation_store.py` |
 | PKI v2 signing | 📋 Month 7+ | TBD |

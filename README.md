@@ -166,7 +166,7 @@ unsearch/
 │   ├── sdk-ts/             #   @unsearch/sdk — TypeScript SDK
 │   ├── sdk-py/             #   unsearch — Python SDK (sync + async)
 │   ├── sdk-llamaindex/     #   @unsearch/llamaindex — LlamaIndex retriever
-│   └── mcp-server/         #   @unsearch/mcp-server — MCP server (P0 Week 3)
+│   └── mcp-server/         #   @unsearch/mcp-server — MCP server (stdio + hosted /mcp)
 ├── infra/                  # Operational config (self-host stack + CF Container sidecars)
 │   ├── nginx/              #   Reverse-proxy for self-host TLS
 │   ├── monitoring/         #   Prometheus + Grafana provisioning
@@ -185,25 +185,23 @@ The architecture (Workers fronting FastAPI on Cloudflare Containers GA, with D1 
 > See [`docs/feature-matrix.md`](./docs/feature-matrix.md) for the full table. TL;DR below.
 
 ### Shipped (production, end-to-end tested)
-- Web search (`/api/v1/search`, `/api/v1/agent/search`) — Tavily-compatible drop-in compatibility surface
+- Web search (`/api/v1/search`, `/api/v1/agent/search`) — signed citation envelope per result
 - Neural / semantic search + auto-prompt + highlights + similar — Exa-compatible
 - Multi-engine aggregation via SearXNG (70+ engines, sidecar container)
 - Scraping (static, JavaScript, PDF, multi-engine), extraction, deep crawl
+- Signed citation envelope (HMAC v1, WACZ-aligned) + R2/local snapshot store
+- Claim verification (`/api/v1/verify/claim`) and citation diff (`/api/v1/verify/citation`)
+- Per-API-key audit log (`/api/v1/audit`)
 - RAG with Cloudflare Vectorize + `bge-m3` embeddings + 4-tier Workers AI model selector
 - Stripe billing — checkout + portal + subscriptions
 - Cloudflare edge — Workers, Workers AI, Vectorize, Queues, Durable Objects, D1, KV, R2
 - TypeScript SDK (`@unsearch/sdk`), Python SDK (`unsearch`), LlamaIndex retriever (`@unsearch/llamaindex`)
+- MCP server at `api.unsearch.dev/mcp` and `npx @unsearch/mcp-server`
 
-### Shipping in the 3-week rebuild (per the approved plan)
-- ✏️ Cloudflare Containers deploy (FastAPI + SearXNG sidecar) — **Week 1**
-- ✏️ Dashboard at `app.unsearch.dev`, edge at `api.unsearch.dev` — **Week 1**
-- ✏️ Signed citation envelope on every result (HMAC v1, WACZ-aligned) — **Week 2**
-- ✏️ R2 snapshot store (content-addressable, sha256-keyed) — **Week 2**
-- ✏️ `/api/v1/verify/citation` + `/api/v1/verify/claim` GA — **Week 2**
-- ✏️ `/api/v1/audit` per-API-key audit log — **Week 2**
-- ✏️ MCP server (Streamable HTTP) at `api.unsearch.dev/mcp` — **Week 3**
-- ✏️ `npx @unsearch/mcp-server` package — **Week 3**
-- ✏️ MCP registry submission + HN launch — **Week 3**
+### In flight / upcoming
+- ✏️ Cloudflare Containers deploy (FastAPI + SearXNG sidecar) — requires enabling container binding in `wrangler.toml`
+- ✏️ Dashboard at `app.unsearch.dev`, edge at `api.unsearch.dev` — domain + domain activation
+- ✏️ MCP registry submission + HN launch
 
 ### In beta (code paths exist, hardening in flight)
 - Knowledge graph — entity extraction, relationship mapping (`/api/v1/knowledge/*`)
@@ -239,9 +237,9 @@ The full ordered roadmap lives in [`docs/roadmap.md`](./docs/roadmap.md). The 3-
 7. `verify/citation` + `verify/claim` endpoints GA
 8. Dashboard verify + audit views
 
-**Week 3 — MCP-first distribution + launch**
-9. Hono-hosted MCP server at `/mcp` exposing `search`, `extract`, `research`, `verify_claim`
-10. `npx @unsearch/mcp-server` package
+**Distribution + launch**
+9. ✅ Hono-hosted MCP server at `/mcp` exposing `search`, `extract`, `research`, `verify_claim`
+10. ✅ `npx @unsearch/mcp-server` package
 11. MCP registry + `awesome-mcp-servers` submission
 12. HN launch + outreach to first 10 named ICP-1 customers
 
@@ -262,7 +260,7 @@ The full ordered roadmap lives in [`docs/roadmap.md`](./docs/roadmap.md). The 3-
 | Python (sync + async) | [`unsearch`](https://pypi.org/project/unsearch/) | [`apps/sdk-py`](./apps/sdk-py/) |
 | TypeScript / Node / Edge | [`@unsearch/sdk`](https://www.npmjs.com/package/@unsearch/sdk) | [`apps/sdk-ts`](./apps/sdk-ts/) |
 | LlamaIndex retriever | [`@unsearch/llamaindex`](https://www.npmjs.com/package/@unsearch/llamaindex) | [`apps/sdk-llamaindex`](./apps/sdk-llamaindex/) |
-| MCP server | _coming Week 3_ | [`apps/mcp-server/`](./apps/mcp-server/) |
+| MCP server | [`@unsearch/mcp-server`](https://www.npmjs.com/package/@unsearch/mcp-server) | [`apps/mcp-server/`](./apps/mcp-server/) |
 | LangChain | _community PR in flight_ | — |
 
 All SDKs cover the same surface — search, extract, research, neural search, RAG (with streaming), ingest, verify, topic monitoring, plus a `tavily_search` / `tavilySearch` drop-in.
@@ -284,13 +282,13 @@ All SDKs cover the same surface — search, extract, research, neural search, RA
 | `POST /api/v1/agent/search` | Tavily-compatible drop-in (compatibility surface) |
 | `POST /api/v1/agent/research` | Deep research agent (Durable Object, multi-step, audit-trailed) |
 | `POST /api/v1/agent/extract` | Web extraction with envelope |
-| `POST /api/v1/verify/citation` | Snapshot pin + live diff (**shipping Week 2**) |
-| `POST /api/v1/verify/claim` | Span-level claim grading via Workers AI (**shipping Week 2**) |
+| `POST /api/v1/verify/citation` | Snapshot pin + live diff |
+| `POST /api/v1/verify/claim` | Span-level claim grading via Workers AI |
 | `POST /api/v1/verify/source` | 🔶 Source credibility |
-| `GET  /api/v1/audit` | Per-API-key audit log (**shipping Week 2**) |
+| `GET  /api/v1/audit` | Per-API-key audit log |
 | `POST /api/v1/neural/search` | Exa-compatible neural search |
 | `POST /api/v1/rag/query` | RAG over your Vectorize namespace (SSE streaming) |
-| `GET  /mcp` | Streamable HTTP MCP server (**shipping Week 3**) |
+| `GET  /mcp` | Streamable HTTP MCP server |
 
 Full reference: [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md). Worked examples: [`docs/API_EXAMPLES.md`](./docs/API_EXAMPLES.md). Envelope schema: [`docs/citation-envelope.md`](./docs/citation-envelope.md).
 

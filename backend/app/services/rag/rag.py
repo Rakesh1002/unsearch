@@ -35,6 +35,7 @@ from app.config import get_settings
 from app.services.core.searxng import SearXNGService, get_searxng_service
 from app.services.scraping.scraping import ContentScrapingService, get_scraping_service
 from app.services.ai.cloudflare_ai import get_cloudflare_ai_service
+from app.services.core.vectorize_client import get_vectorize_client, VectorizeClient
 from app.models.responses import SearchResult, ScrapedContent
 from app.utils.text_processing import sanitize_text, extract_keywords, calculate_text_quality
 
@@ -215,65 +216,112 @@ class EmbeddingService:
 
 class VectorStore:
     """
-    Simple in-memory vector store for RAG retrieval.
-    
-    For production, integrate with:
-    - Cloudflare Vectorize
-    - Pinecone
-    - Qdrant
-    - ChromaDB
+    Vector store for RAG retrieval.
+
+    Uses Cloudflare Vectorize when credentials are configured; otherwise falls
+    back to an in-memory store. The interface is identical in both modes so
+    callers do not need to branch.
     """
-    
-    def __init__(self):
+
+    def __init__(self, vectorize_client: Optional[VectorizeClient] = None):
         self._vectors: Dict[str, Dict[str, Any]] = {}  # corpus_id -> {id: {embedding, metadata}}
-        
-    def add_vectors(
-        self, 
+        self._vectorize = vectorize_client
+        self._using_vectorize = self._vectorize is not None and self._vectorize.is_configured
+        # Track vector IDs per corpus so list/info/delete work when backed by Vectorize.
+        self._corpus_ids: Dict[str, set] = {}
+
+    async def _ensure_client(self):
+        if self._vectorize is None:
+            self._vectorize = await get_vectorize_client()
+            self._using_vectorize = self._vectorize.is_configured
+
+    async def add_vectors(
+        self,
         corpus_id: str,
         vectors: List[Tuple[str, List[float], Dict[str, Any]]]
     ):
         """
         Add vectors to the store.
-        
+
         Args:
-            corpus_id: Identifier for the corpus/collection
+            corpus_id: Identifier for the corpus/collection (maps to namespace in Vectorize)
             vectors: List of (id, embedding, metadata) tuples
         """
+        await self._ensure_client()
+
+        if self._using_vectorize:
+            payload = [
+                {"id": vec_id, "values": embedding, "metadata": metadata}
+                for vec_id, embedding, metadata in vectors
+            ]
+            try:
+                await self._vectorize.insert(payload, namespace=corpus_id)
+                logger.info("vectors_added_vectorize", corpus_id=corpus_id, count=len(vectors))
+                return
+            except Exception as e:
+                logger.warning("vectorize_insert_failed", corpus_id=corpus_id, error=str(e))
+                # Fall through to in-memory on failure.
+
         if corpus_id not in self._vectors:
             self._vectors[corpus_id] = {}
-            
+        if corpus_id not in self._corpus_ids:
+            self._corpus_ids[corpus_id] = set()
+
         for vec_id, embedding, metadata in vectors:
             self._vectors[corpus_id][vec_id] = {
                 "embedding": embedding,
                 "metadata": metadata
             }
-            
+            self._corpus_ids[corpus_id].add(vec_id)
+
         logger.info(
             "vectors_added",
             corpus_id=corpus_id,
             count=len(vectors),
             total=len(self._vectors[corpus_id])
         )
-        
-    def search(
-        self, 
+
+    async def search(
+        self,
         corpus_id: str,
         query_embedding: List[float],
         limit: int = 10,
         min_score: float = 0.0
     ) -> List[Tuple[str, float, Dict[str, Any]]]:
         """
-        Search for similar vectors using cosine similarity.
-        
+        Search for similar vectors.
+
         Args:
             corpus_id: Corpus to search in
             query_embedding: Query vector
             limit: Maximum results to return
             min_score: Minimum similarity score (0-1)
-            
+
         Returns:
             List of (id, score, metadata) tuples sorted by score descending
         """
+        await self._ensure_client()
+
+        if self._using_vectorize:
+            try:
+                matches = await self._vectorize.query(
+                    query_embedding,
+                    top_k=limit,
+                    namespace=corpus_id,
+                    return_metadata=True,
+                )
+                # Vectorize scores are cosine similarity (-1 to 1). Convert to 0-1.
+                converted = []
+                for vec_id, score, metadata in matches:
+                    normalized = (score + 1) / 2
+                    if normalized >= min_score:
+                        converted.append((vec_id, normalized, metadata))
+                converted.sort(key=lambda x: x[1], reverse=True)
+                return converted
+            except Exception as e:
+                logger.warning("vectorize_query_failed", corpus_id=corpus_id, error=str(e))
+                # Fall through to in-memory.
+
         if corpus_id not in self._vectors:
             return []
             
@@ -331,15 +379,25 @@ class VectorStore:
         
         return results[:limit]
         
-    def delete_corpus(self, corpus_id: str):
+    async def delete_corpus(self, corpus_id: str):
         """Delete all vectors for a corpus."""
+        await self._ensure_client()
+        ids = self._corpus_ids.get(corpus_id, set())
+        if self._using_vectorize and ids:
+            try:
+                await self._vectorize.delete(list(ids), namespace=corpus_id)
+            except Exception as e:
+                logger.warning("vectorize_delete_failed", corpus_id=corpus_id, error=str(e))
         if corpus_id in self._vectors:
             del self._vectors[corpus_id]
-            logger.info("corpus_deleted", corpus_id=corpus_id)
-            
+        if corpus_id in self._corpus_ids:
+            del self._corpus_ids[corpus_id]
+        logger.info("corpus_deleted", corpus_id=corpus_id)
+
     def get_corpus_size(self, corpus_id: str) -> int:
         """Get number of vectors in a corpus."""
-        return len(self._vectors.get(corpus_id, {}))
+        # Prefer the ID set because it is accurate when backed by Vectorize.
+        return len(self._corpus_ids.get(corpus_id, set())) or len(self._vectors.get(corpus_id, {}))
 
 
 class RAGService:
@@ -376,6 +434,8 @@ class RAGService:
     async def close(self):
         """Close all service connections."""
         await self.embedding_service.close()
+        if self.vector_store._vectorize:
+            await self.vector_store._vectorize.close()
         self._initialized = False
         
     def generate_research_queries(
@@ -753,7 +813,7 @@ class RAGService:
             ))
             
         # Store vectors
-        self.vector_store.add_vectors(corpus_id, vectors)
+        await self.vector_store.add_vectors(corpus_id, vectors)
         
         logger.info(
             "embeddings_stored",
@@ -787,7 +847,7 @@ class RAGService:
         query_embedding = await self.embedding_service.generate_single_embedding(query)
         
         # Search vector store
-        results = self.vector_store.search(
+        results = await self.vector_store.search(
             corpus_id=corpus_id,
             query_embedding=query_embedding,
             limit=limit,
