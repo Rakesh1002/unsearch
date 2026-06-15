@@ -241,4 +241,4 @@ class TestHealthEndpoints:
 from app.services.searxng import get_searxng_service
 from app.services.scraping import get_scraping_service
 from app.services.cache import get_cache_service
-from app.services.database import get_database_service
+from app.services.core.database import get_database_service
