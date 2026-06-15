@@ -2,6 +2,10 @@ from ._version import __version__
 from .client import AsyncUnSearch, UnSearch
 from .errors import UnSearchError
 from .types import (
+    CitationEnvelope,
+    ExtractRequest,
+    ExtractResponse,
+    ExtractedContentResult,
     HighlightsRequest,
     HighlightsResponse,
     IngestDocument,
@@ -22,9 +26,14 @@ from .types import (
     StreamEvent,
     VectorMatch,
 )
+from .verify import verify_envelope
 
 __all__ = [
     "AsyncUnSearch",
+    "CitationEnvelope",
+    "ExtractRequest",
+    "ExtractResponse",
+    "ExtractedContentResult",
     "HighlightsRequest",
     "HighlightsResponse",
     "IngestDocument",
@@ -46,5 +55,6 @@ __all__ = [
     "UnSearch",
     "UnSearchError",
     "VectorMatch",
+    "verify_envelope",
     "__version__",
 ]

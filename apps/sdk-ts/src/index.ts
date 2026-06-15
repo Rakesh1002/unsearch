@@ -29,6 +29,23 @@ export interface SearchRequest {
   use_cache?: boolean
 }
 
+export interface CitationEnvelope {
+  v: number
+  url: string
+  fetched_at: string
+  content_sha256: string
+  content_type: string
+  content_bytes: number
+  snapshot_key: string
+  engine: string
+  agent_run_id?: string
+  api_key_id?: string
+  signed_at: string
+  signing_key_id?: string
+  signing_alg: string
+  signature: string
+}
+
 export interface SearchResult {
   rank: number
   title: string
@@ -36,7 +53,29 @@ export interface SearchResult {
   snippet: string
   engine: string
   score: number | null
-  scraped_content?: { text: string; html?: string } | null
+  scraped_content?: { text: string; html?: string; citation_envelope?: CitationEnvelope } | null
+  citation_envelope?: CitationEnvelope
+}
+
+export interface ExtractRequest {
+  urls: string[]
+  include_images?: boolean
+  extract_depth?: "basic" | "advanced"
+}
+
+export interface ExtractedContentResult {
+  url: string
+  raw_content: string
+  images?: string[]
+  failed: boolean
+  error?: string
+  citation_envelope?: CitationEnvelope
+}
+
+export interface ExtractResponse {
+  results: ExtractedContentResult[]
+  failed_urls: string[]
+  response_time: number
 }
 
 export interface SearchResponse {
@@ -175,6 +214,21 @@ export class UnSearch {
     return this.request("POST", "/api/v1/agent/research", req)
   }
 
+  async research(req: {
+    query: string
+    depth?: "quick" | "standard" | "deep" | "comprehensive"
+    max_sources?: number
+    include_analysis?: boolean
+    include_summary?: boolean
+  }): Promise<ResearchSession> {
+    const depthMap: Record<string, number> = { quick: 1, standard: 2, deep: 3, comprehensive: 4 }
+    const { session_id } = await this.startResearch({
+      query: req.query,
+      depth: req.depth ? depthMap[req.depth] ?? 2 : undefined,
+    })
+    return this.pollResearch(session_id)
+  }
+
   getResearch(sessionId: string): Promise<ResearchSession> {
     return this.request("GET", `/api/v1/agent/research/${encodeURIComponent(sessionId)}`)
   }
@@ -194,14 +248,31 @@ export class UnSearch {
     }
   }
 
+  // ----- Extract -----
+
+  extract(req: ExtractRequest): Promise<ExtractResponse> {
+    return this.request<ExtractResponse>("POST", "/api/v1/agent/extract", req)
+  }
+
   // ----- Verify -----
 
-  verifyClaim(claim: string) {
-    return this.request<Record<string, unknown>>("POST", "/api/v1/verify/claim", { claim })
+  verifyClaim(req: { claim: string; source_url?: string; depth?: "quick" | "thorough" }) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/verify/claim", req)
   }
 
   verifySource(url: string) {
     return this.request<Record<string, unknown>>("POST", "/api/v1/verify/source", { url })
+  }
+
+  verifyCitation(req: { url: string; snapshot_key?: string; content_sha256?: string; include_live_content?: boolean }) {
+    return this.request<Record<string, unknown>>("POST", "/api/v1/verify/citation", req)
+  }
+
+  // ----- Audit -----
+
+  audit(params?: { start_date?: string; end_date?: string; limit?: number; offset?: number }) {
+    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : ""
+    return this.request<Record<string, unknown>>("GET", `/api/v1/audit${qs}`)
   }
 
   // ----- Topic monitoring -----
@@ -254,6 +325,77 @@ export class UnSearch {
     try { body = await resp.json() } catch { /* ignore */ }
     return new UnSearchError(`UnSearch ${resp.status}: ${resp.statusText}`, resp.status, body)
   }
+}
+
+/**
+ * Verify a citation envelope's HMAC-SHA256 signature.
+ *
+ * Works in Node.js, Cloudflare Workers, Deno, Bun, and modern browsers.
+ * Returns true if the signature is valid for the given signing key.
+ */
+export async function verifyEnvelope(
+  envelope: CitationEnvelope,
+  signingKey: string,
+): Promise<boolean> {
+  const payload: Record<string, unknown> = {
+    v: envelope.v,
+    url: envelope.url,
+    fetched_at: envelope.fetched_at,
+    content_sha256: envelope.content_sha256,
+    content_type: envelope.content_type,
+    content_bytes: envelope.content_bytes,
+    snapshot_key: envelope.snapshot_key,
+    engine: envelope.engine,
+    agent_run_id: envelope.agent_run_id,
+    api_key_id: envelope.api_key_id,
+    signed_at: envelope.signed_at,
+    signing_key_id: envelope.signing_key_id,
+    signing_alg: envelope.signing_alg,
+  }
+  Object.keys(payload).forEach((key) => {
+    if (payload[key] === undefined) delete payload[key]
+  })
+  const canonical = JSON.stringify(payload, Object.keys(payload).sort(), 0)
+
+  // Prefer Web Crypto (available in Workers, Deno, Bun, browser, Node >=20).
+  const subtle =
+    (typeof globalThis !== "undefined" && (globalThis as any).crypto?.subtle) ||
+    (typeof crypto !== "undefined" && (crypto as any).subtle)
+
+  if (subtle) {
+    const encoder = new TextEncoder()
+    const keyData = encoder.encode(signingKey)
+    const cryptoKey = await subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    )
+    const sig = await subtle.sign("HMAC", cryptoKey, encoder.encode(canonical))
+    const computed = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+    return timingSafeEqual(computed, envelope.signature)
+  }
+
+  // Fallback to Node.js crypto for older Node versions.
+  try {
+    const { createHmac } = await import("node:crypto")
+    const computed = createHmac("sha256", signingKey).update(canonical).digest("hex")
+    return timingSafeEqual(computed, envelope.signature)
+  } catch {
+    throw new Error("No HMAC implementation available. Provide a Web Crypto or Node crypto environment.")
+  }
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
 }
 
 async function* parseSSE(body: ReadableStream<Uint8Array>): AsyncIterable<{ event: string; data: string }> {

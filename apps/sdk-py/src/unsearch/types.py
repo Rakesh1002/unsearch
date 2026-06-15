@@ -24,9 +24,27 @@ class SearchRequest(TypedDict, total=False):
     use_cache: NotRequired[bool]
 
 
+class CitationEnvelope(TypedDict, total=False):
+    v: int
+    url: str
+    fetched_at: str
+    content_sha256: str
+    content_type: str
+    content_bytes: int
+    snapshot_key: str
+    engine: str
+    agent_run_id: NotRequired[str]
+    api_key_id: NotRequired[str]
+    signed_at: str
+    signing_key_id: NotRequired[str]
+    signing_alg: str
+    signature: str
+
+
 class ScrapedContent(TypedDict, total=False):
     text: str
     html: NotRequired[str]
+    citation_envelope: NotRequired[CitationEnvelope]
 
 
 class SearchResult(TypedDict, total=False):
@@ -37,6 +55,7 @@ class SearchResult(TypedDict, total=False):
     engine: str
     score: Optional[float]
     scraped_content: NotRequired[Optional[ScrapedContent]]
+    citation_envelope: NotRequired[CitationEnvelope]
 
 
 class SearchResponse(TypedDict, total=False):
@@ -45,6 +64,27 @@ class SearchResponse(TypedDict, total=False):
     response_time_ms: int
     cache_hit: bool
     request_id: NotRequired[str]
+
+
+class ExtractRequest(TypedDict, total=False):
+    urls: List[str]
+    include_images: NotRequired[bool]
+    extract_depth: NotRequired[Literal["basic", "advanced"]]
+
+
+class ExtractedContentResult(TypedDict, total=False):
+    url: str
+    raw_content: str
+    images: NotRequired[List[str]]
+    failed: bool
+    error: NotRequired[str]
+    citation_envelope: NotRequired[CitationEnvelope]
+
+
+class ExtractResponse(TypedDict, total=False):
+    results: List[ExtractedContentResult]
+    failed_urls: List[str]
+    response_time: float
 
 
 class NeuralSearchRequest(TypedDict, total=False):
