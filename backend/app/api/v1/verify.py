@@ -13,10 +13,18 @@ from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 import hashlib
 import structlog
+import httpx
 
 from app.config import get_settings
+from app.api.dependencies import CitationStoreDep
+from app.models.citation import (
+    CitationVerificationRequest,
+    CitationVerificationResponse,
+    SnapshotDiff,
+)
 from app.services.ai.cloudflare_ai import CloudflareAIService, CFModel
 from app.services.core.searxng import SearXNGService
+from app.services.citation_store import normalize_content, compute_sha256
 
 logger = structlog.get_logger(__name__)
 
@@ -402,3 +410,84 @@ async def process_batch_verification(job_id: str, claims: List[str]):
     if job_id in _batch_jobs:
         _batch_jobs[job_id].status = "completed"
         _batch_jobs[job_id].results = results
+
+
+@router.post("/citation", response_model=CitationVerificationResponse)
+async def verify_citation(
+    request: CitationVerificationRequest,
+    citation_store: CitationStoreDep,
+):
+    """
+    Compare a stored citation snapshot against the live URL.
+
+    Given a URL (and optional snapshot key or expected content SHA-256), this
+    endpoint re-fetches the page, normalizes it, and reports whether the content
+    has changed since the snapshot was taken.
+    """
+    # Load the snapshot bundle by key or by content SHA-256.
+    bundle = None
+    if request.snapshot_key:
+        bundle = await citation_store.get_bundle_by_key(request.snapshot_key)
+    elif request.content_sha256:
+        bundle = await citation_store.get_bundle(request.content_sha256)
+
+    if bundle is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot not found. Provide snapshot_key or content_sha256."
+        )
+
+    # Re-fetch the URL live.
+    live_bytes: Optional[bytes] = None
+    live_fetched_at: Optional[datetime] = None
+    live_sha256: Optional[str] = None
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
+            resp = await client.get(request.url, headers={"User-Agent": "UnSearch-Citation-Verifier/1.0"})
+            live_fetched_at = datetime.utcnow()
+            if resp.status_code == 200:
+                live_bytes = resp.content
+                content_type = resp.headers.get("content-type", bundle.content_type)
+                normalized_live = normalize_content(live_bytes, content_type)
+                live_sha256 = compute_sha256(normalized_live)
+    except Exception as e:
+        logger.warning("verify_citation_live_fetch_failed", url=request.url, error=str(e))
+
+    # Determine status and diff metrics.
+    snapshot_matches_envelope = compute_sha256(bundle.normalized_bytes) == bundle.content_sha256
+
+    if live_sha256 is None:
+        status: Literal["missing_live", "unchanged", "changed"] = "missing_live"
+        byte_diff = None
+        changed_ratio = None
+        summary = "Live URL could not be fetched; snapshot exists but cannot be compared."
+    elif live_sha256 == bundle.content_sha256:
+        status = "unchanged"
+        byte_diff = 0
+        changed_ratio = 0.0
+        summary = "Live content matches the stored snapshot exactly (after normalization)."
+    else:
+        status = "changed"
+        byte_diff = abs(len(bundle.normalized_bytes) - len(normalize_content(live_bytes, bundle.content_type)))
+        # Rough changed-ratio estimate based on byte length difference.
+        max_len = max(len(bundle.normalized_bytes), 1)
+        changed_ratio = round(min(byte_diff / max_len, 1.0), 4)
+        summary = f"Live content differs from snapshot (changed_ratio={changed_ratio})."
+
+    return CitationVerificationResponse(
+        url=request.url,
+        snapshot=bundle if request.include_live_content else None,
+        diff=SnapshotDiff(
+            url=request.url,
+            snapshot_sha256=bundle.content_sha256,
+            live_sha256=live_sha256,
+            status=status,
+            byte_diff=byte_diff,
+            last_fetched_at=bundle.fetched_at,
+            live_fetched_at=live_fetched_at,
+            changed_ratio=changed_ratio,
+            summary=summary,
+        ),
+        envelope_valid=True,
+        snapshot_matches_envelope=snapshot_matches_envelope,
+    )

@@ -6,6 +6,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field, HttpUrl
 from enum import Enum
 
+from app.models.citation import CitationEnvelope
+
 
 class ServiceHealth(BaseModel):
     """Service health status."""
@@ -60,6 +62,7 @@ class ScrapedContent(BaseModel):
     language_detected: Optional[str] = None
     content_quality_score: float = Field(ge=0.0, le=1.0, description="Content quality score")
     error_message: Optional[str] = None
+    citation_envelope: Optional[CitationEnvelope] = Field(default=None, description="Signed citation envelope for this retrieval")
 
 
 class SearchResult(BaseModel):
@@ -72,6 +75,7 @@ class SearchResult(BaseModel):
     score: Optional[float] = Field(default=None, description="Relevance score if available")
     scraped_content: Optional[ScrapedContent] = None
     cached: bool = False
+    citation_envelope: Optional[CitationEnvelope] = Field(default=None, description="Signed citation envelope proving retrieval provenance")
     
     class Config:
         json_schema_extra = {
