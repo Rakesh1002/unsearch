@@ -1,6 +1,15 @@
-"""
-Pytest configuration and fixtures.
-"""
+import os
+# Set environment variables for testing before any app imports
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["RATE_LIMIT_ENABLED"] = "false"
+os.environ["RATE_LIMIT_STORAGE_URL"] = "memory://"
+os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test_db"
+os.environ["REDIS_URL"] = "redis://localhost:6379/15"
+os.environ["SEARXNG_URL"] = "http://localhost:8888"
+os.environ["API_KEYS"] = "test-key-1,test-key-2"
+os.environ["CLOUDFLARE_AI_ENABLED"] = "false"
+os.environ["PUPPETEER_ENABLED"] = "false"
+
 import asyncio
 import pytest
 from typing import AsyncGenerator, Generator
@@ -10,12 +19,13 @@ from fakeredis import FakeAsyncRedis
 
 from app.main import app
 from app.config import Settings, get_settings
-from app.models.database import Base
+from app.models.database import Base, APIKey
 from app.services.core.database import DatabaseService
 from app.services.core.cache import CacheService
 from app.services.core.searxng import SearXNGService
 from app.services.scraping.scraping import ContentScrapingService
 from app.services.rag.rag import RAGService, VectorStore, EmbeddingService, ResearchSource
+from app.models.users import User
 
 
 # Test settings
@@ -35,9 +45,14 @@ def test_settings() -> Settings:
 
 
 @pytest.fixture
-def override_settings(test_settings: Settings):
-    """Override application settings."""
-    app.dependency_overrides[get_settings] = lambda: test_settings
+def override_settings(test_settings: Settings, test_db, test_cache, mock_searxng, mock_scraper):
+    """Override application settings and dependencies."""
+    from app.api.dependencies import get_searxng, get_scraper, get_cache, get_db_service, get_settings_dependency
+    app.dependency_overrides[get_settings_dependency] = lambda: test_settings
+    app.dependency_overrides[get_db_service] = lambda: test_db
+    app.dependency_overrides[get_cache] = lambda: test_cache
+    app.dependency_overrides[get_searxng] = lambda: mock_searxng
+    app.dependency_overrides[get_scraper] = lambda: mock_scraper
     yield
     app.dependency_overrides.clear()
 
@@ -46,14 +61,30 @@ def override_settings(test_settings: Settings):
 @pytest.fixture
 async def test_db(test_settings: Settings) -> AsyncGenerator[DatabaseService, None]:
     """Create test database."""
-    # Create test engine
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy import event
+    # Create SQLite in-memory test engine with shared cache to support concurrency
     engine = create_async_engine(
-        str(test_settings.database_url),
+        "sqlite+aiosqlite:///file:test_db?mode=memory&cache=shared&uri=true",
+        poolclass=NullPool,
+        connect_args={"timeout": 30},
         echo=False,
         future=True
     )
     
+
+    
+    # Keep one connection open to prevent the shared-cache in-memory DB from being destroyed
+    keep_alive_conn = await engine.connect()
+    
     # Create tables
+    from app.models.users import Base as UserBase
+    
+    # Merge both metadata collections so foreign keys resolve properly
+    for table_name, table in list(UserBase.metadata.tables.items()):
+        if table_name not in Base.metadata.tables:
+            table.to_metadata(Base.metadata)
+            
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
@@ -66,9 +97,46 @@ async def test_db(test_settings: Settings) -> AsyncGenerator[DatabaseService, No
         expire_on_commit=False
     )
     
+    # Override singleton _database_service
+    import app.services.core.database
+    original_db_service = app.services.core.database._database_service
+    app.services.core.database._database_service = db_service
+    
+    # Prepopulate the database with test user and test API keys
+    async with db_service.get_session() as session:
+        user1 = User(
+            id=1,
+            email="test@example.com",
+            password_hash="fakehash",
+            salt="fakesalt",
+            is_active=True
+        )
+        session.add(user1)
+        await session.commit()
+        
+        key1 = APIKey(
+            id=1,
+            key="test-key-1",
+            name="Test Key 1",
+            is_active=True,
+            user_id=1
+        )
+        key2 = APIKey(
+            id=2,
+            key="test-key-2",
+            name="Test Key 2",
+            is_active=True,
+            user_id=1
+        )
+        session.add(key1)
+        session.add(key2)
+        await session.commit()
+    
     yield db_service
     
-    # Cleanup
+    # Restore singleton and cleanup
+    app.services.core.database._database_service = original_db_service
+    await keep_alive_conn.close()
     await engine.dispose()
 
 
@@ -89,7 +157,7 @@ async def test_cache() -> AsyncGenerator[CacheService, None]:
 async def client(override_settings) -> AsyncGenerator[AsyncClient, None]:
     """Create test HTTP client."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
 
@@ -104,9 +172,20 @@ async def authenticated_client(client: AsyncClient) -> AsyncClient:
 @pytest.fixture
 def mock_searxng(mocker):
     """Mock SearXNG service."""
+    from app.models.responses import SearchResult
     mock = mocker.Mock(spec=SearXNGService)
-    mock.search.return_value = []
-    mock.get_available_engines.return_value = {}
+    default_results = [
+        SearchResult(
+            rank=1,
+            title="Test Result 1",
+            url="https://example.com/tutorial",
+            snippet="Learn how to scrape websites with Python...",
+            engine="google"
+        )
+    ]
+    mock.search.return_value = default_results
+    mock.search_with_relevance = mocker.AsyncMock(return_value=(default_results, None))
+    mock.get_available_engines.return_value = {"google": {}, "bing": {}, "duckduckgo": {}}
     mock.health_check.return_value = {
         "status": "healthy",
         "latency_ms": 100
@@ -117,8 +196,27 @@ def mock_searxng(mocker):
 @pytest.fixture
 def mock_scraper(mocker):
     """Mock scraping service."""
+    from app.models.responses import ScrapedContent
     mock = mocker.Mock(spec=ContentScrapingService)
-    mock.scrape_urls.return_value = []
+    default_scrape = [ScrapedContent(
+        url="https://example.com/tutorial",
+        title="Python Web Scraping Tutorial",
+        text="This is a comprehensive guide to web scraping with Python...",
+        images=["https://example.com/img1.jpg"],
+        links=["https://example.com/related"],
+        extraction_success=True,
+        extraction_time_ms=250,
+        word_count=1500,
+        language_detected="en",
+        content_quality_score=0.85,
+        metadata={
+            "title": "Python Web Scraping Tutorial",
+            "description": "Learn web scraping with Python",
+            "author": "John Doe",
+            "keywords": ["python", "web scraping", "tutorial"]
+        }
+    )]
+    mock.scrape_urls.return_value = default_scrape
     return mock
 
 
@@ -294,3 +392,28 @@ def sample_semantic_search_request():
         "limit": 10,
         "min_relevance": 0.5
     }
+
+
+# Fallback benchmark fixture if pytest-benchmark is not installed
+try:
+    import pytest_benchmark
+except ImportError:
+    @pytest.fixture(name="benchmark")
+    def benchmark_fallback():
+        """Fallback benchmark fixture that runs the function synchronously once."""
+        def _benchmark(func, *args, **kwargs):
+            return func(*args, **kwargs)
+        def pedantic(func, args=None, kwargs=None, **setup_kwargs):
+            func_args = args or ()
+            func_kwargs = kwargs or {}
+            setup_func = setup_kwargs.get("setup")
+            if setup_func:
+                setup_args = setup_func()
+                if setup_args:
+                    if isinstance(setup_args, tuple):
+                        func_args = setup_args + func_args
+                    elif isinstance(setup_args, dict):
+                        func_kwargs.update(setup_args)
+            return func(*func_args, **func_kwargs)
+        _benchmark.pedantic = pedantic
+        return _benchmark

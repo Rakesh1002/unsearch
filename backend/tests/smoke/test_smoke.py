@@ -9,7 +9,7 @@ from httpx import AsyncClient
 
 
 BASE_URL = os.getenv("SMOKE_TEST_URL", "http://localhost:8000")
-API_KEY = os.getenv("SMOKE_TEST_API_KEY", "test-api-key")
+API_KEY = os.getenv("SMOKE_TEST_API_KEY", "test-key-1")
 
 
 @pytest.mark.asyncio
@@ -17,11 +17,16 @@ class TestSmoke:
     """Quick smoke tests for critical functionality."""
     
     @pytest.fixture
-    async def client(self):
+    async def client(self, override_settings):
         """Create HTTP client for tests."""
+        from app.main import app
+        from httpx import ASGITransport
+        transport = ASGITransport(app=app)
         async with AsyncClient(
-            base_url=BASE_URL,
-            timeout=10.0
+            transport=transport,
+            base_url="http://test",
+            timeout=10.0,
+            follow_redirects=True
         ) as client:
             yield client
     
@@ -53,8 +58,10 @@ class TestSmoke:
         
         # Should require authentication (unless disabled in test env)
         if response.status_code == 401:
-            assert "X-API-Key" in response.json().get("detail", "").lower() or \
-                   "unauthorized" in response.json().get("message", "").lower()
+            detail_lower = response.json().get("detail", "").lower()
+            assert "x-api-key" in detail_lower or \
+                   "unauthorized" in response.json().get("message", "").lower() or \
+                   "api key required" in detail_lower
     
     async def test_basic_search(self, client: AsyncClient):
         """Test basic search functionality."""
@@ -133,12 +140,17 @@ class TestCriticalPaths:
     """Test critical user paths quickly."""
     
     @pytest.fixture
-    async def auth_client(self):
+    async def auth_client(self, override_settings):
         """Create authenticated client."""
+        from app.main import app
+        from httpx import ASGITransport
+        transport = ASGITransport(app=app)
         async with AsyncClient(
-            base_url=BASE_URL,
-            headers={"X-API-Key": API_KEY},
-            timeout=15.0
+            transport=transport,
+            base_url="http://test",
+            headers={"X-API-Key": "test-key-1"},
+            timeout=15.0,
+            follow_redirects=True
         ) as client:
             yield client
     

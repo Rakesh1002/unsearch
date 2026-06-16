@@ -29,6 +29,13 @@ WEB = os.environ.get("UNSEARCH_WEB_URL", "https://unsearch.dev").rstrip("/")
 SEEDED_KEY = os.environ.get("UNSEARCH_TEST_API_KEY")  # optional pre-provisioned key
 
 
+# Skip this entire module in local testing or without a test API key
+pytestmark = pytest.mark.skipif(
+    os.environ.get("ENVIRONMENT") == "testing" or not os.environ.get("UNSEARCH_TEST_API_KEY"),
+    reason="Production smoke tests skipped in local testing or when UNSEARCH_TEST_API_KEY is not set"
+)
+
+
 @pytest.fixture(scope="session")
 def http() -> httpx.Client:
     with httpx.Client(timeout=30.0) as client:

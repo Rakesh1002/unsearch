@@ -12,11 +12,33 @@ from httpx import AsyncClient
 import statistics
 import random
 import os
+from datetime import datetime
+from unittest.mock import patch, MagicMock, AsyncMock
+from fakeredis import FakeAsyncRedis
+
+# Mock sent_tokenize/word_tokenize globally to avoid bad zip file errors
+def mock_sent_tokenize(text):
+    return [s.strip() for s in text.split('.') if s.strip()]
+def mock_word_tokenize(text):
+    return [w.strip() for w in text.split() if w.strip()]
+
+mock_pool = MagicMock()
+mock_pool.disconnect = AsyncMock()
+
+@pytest.fixture(autouse=True, scope="module")
+def mock_module_dependencies():
+    with patch('app.services.core.cache.redis.Redis', side_effect=lambda *args, **kwargs: FakeAsyncRedis()), \
+         patch('app.services.core.cache.ConnectionPool.from_url', return_value=mock_pool), \
+         patch('app.utils.text_processing.sent_tokenize', side_effect=mock_sent_tokenize), \
+         patch('app.utils.text_processing.word_tokenize', side_effect=mock_word_tokenize), \
+         patch('fastapi.BackgroundTasks.add_task', return_value=None):
+        yield
 
 from app.services.cache import CacheService
 from app.services.scraping import ContentScrapingService
 from app.services.searxng import SearXNGService
 from app.models.requests import UnSearchRequest, ScrapingConfig
+from app.models.responses import UnSearchResponse, SearchMetadata, SearchResult
 from app.utils.text_processing import (
     sanitize_text, extract_snippet, detect_language, calculate_text_quality
 )
@@ -61,33 +83,94 @@ class TestServiceBenchmarks:
     def test_cache_write_performance(self, benchmark):
         """Benchmark cache write operations."""
         cache = CacheService()
+        loop = asyncio.new_event_loop()
+        
+        # Construct valid UnSearchResponse data
+        metadata = SearchMetadata(
+            query="test query",
+            engines_used=["google"],
+            engines_succeeded=["google"],
+            total_results_found=100,
+            results_returned=100,
+            search_time_ms=10,
+            timestamp=datetime.utcnow()
+        )
+        results = [
+            SearchResult(
+                rank=i,
+                title=f"Result {i}",
+                url="https://example.com",
+                snippet=f"Snippet {i}",
+                engine="google"
+            )
+            for i in range(100)
+        ]
+        response_data = UnSearchResponse(
+            search_metadata=metadata,
+            results=results,
+            processing_time_ms=150,
+            cached=False,
+            total_results=100,
+            request_id="test-request-id"
+        )
         
         async def cache_write():
             await cache.initialize()
-            data = {"results": [{"title": f"Result {i}"} for i in range(100)]}
             cache_key = f"test_key_{random.randint(1, 1000000)}"
-            await cache.set_search_results(cache_key, data, ttl=3600)
+            await cache.set_search_results(cache_key, response_data, ttl=3600)
             await cache.close()
         
         def run_cache_write():
-            asyncio.run(cache_write())
+            loop.run_until_complete(cache_write())
         
-        benchmark(run_cache_write)
+        try:
+            benchmark(run_cache_write)
+        finally:
+            loop.close()
     
     @pytest.mark.benchmark(group="cache")
     def test_cache_read_performance(self, benchmark):
         """Benchmark cache read operations."""
         cache = CacheService()
+        loop = asyncio.new_event_loop()
+        
+        # Construct valid UnSearchResponse data
+        metadata = SearchMetadata(
+            query="test query",
+            engines_used=["google"],
+            engines_succeeded=["google"],
+            total_results_found=10,
+            results_returned=10,
+            search_time_ms=10,
+            timestamp=datetime.utcnow()
+        )
+        results = [
+            SearchResult(
+                rank=i,
+                title=f"Result {i}",
+                url="https://example.com",
+                snippet=f"Snippet {i}",
+                engine="google"
+            )
+            for i in range(10)
+        ]
+        response_data = UnSearchResponse(
+            search_metadata=metadata,
+            results=results,
+            processing_time_ms=150,
+            cached=False,
+            total_results=10,
+            request_id="test-request-id"
+        )
         
         async def setup():
             await cache.initialize()
             # Pre-populate cache
             for i in range(100):
-                data = {"results": [{"title": f"Result {j}"} for j in range(10)]}
-                await cache.set_search_results(f"test_key_{i}", data, ttl=3600)
+                await cache.set_search_results(f"test_key_{i}", response_data, ttl=3600)
             return cache
         
-        cache_instance = asyncio.run(setup())
+        cache_instance = loop.run_until_complete(setup())
         
         async def cache_read():
             key = f"test_key_{random.randint(0, 99)}"
@@ -95,13 +178,15 @@ class TestServiceBenchmarks:
             return result
         
         def run_cache_read():
-            return asyncio.run(cache_read())
+            return loop.run_until_complete(cache_read())
         
-        result = benchmark(run_cache_read)
-        assert result is not None
-        
-        # Cleanup
-        asyncio.run(cache_instance.close())
+        try:
+            result = benchmark(run_cache_read)
+            assert result is not None
+            # Cleanup
+            loop.run_until_complete(cache_instance.close())
+        finally:
+            loop.close()
     
     @pytest.mark.benchmark(group="text-processing")
     def test_text_sanitization_performance(self, benchmark):
@@ -156,21 +241,19 @@ class TestAPIEndpointBenchmarks:
     """Benchmark API endpoint performance."""
     
     @pytest.fixture
-    async def client(self):
+    def client(self, override_settings):
         """Create test client."""
-        async with AsyncClient(
-            base_url="http://localhost:8000",
-            headers={"X-API-Key": os.getenv("BENCHMARK_API_KEY", "test-key")},
-            timeout=30.0
-        ) as client:
-            yield client
+        from fastapi.testclient import TestClient
+        from app.main import app
+        c = TestClient(app)
+        c.headers["X-API-Key"] = "test-key-1"
+        return c
     
     @pytest.mark.benchmark(group="api", min_rounds=5)
-    @pytest.mark.asyncio
-    async def test_search_endpoint_performance(self, benchmark, client):
+    def test_search_endpoint_performance(self, benchmark, client):
         """Benchmark search endpoint."""
-        async def perform_search():
-            response = await client.post("/api/v1/search", json={
+        def run_search():
+            response = client.post("/api/v1/search", json={
                 "query": random.choice(SAMPLE_QUERIES),
                 "engines": ["google"],
                 "max_results": 5,
@@ -179,20 +262,15 @@ class TestAPIEndpointBenchmarks:
             })
             return response
         
-        # Wrap async function for benchmark
-        def run_search():
-            return asyncio.run(perform_search())
-        
         response = benchmark(run_search)
-        if response.status_code == 200:
-            assert "results" in response.json()
+        assert response.status_code == 200
+        assert "results" in response.json()
     
     @pytest.mark.benchmark(group="api", min_rounds=3)
-    @pytest.mark.asyncio
-    async def test_search_with_scraping_performance(self, benchmark, client):
+    def test_search_with_scraping_performance(self, benchmark, client):
         """Benchmark search with content scraping."""
-        async def perform_search_with_scraping():
-            response = await client.post("/api/v1/search", json={
+        def run_search():
+            response = client.post("/api/v1/search", json={
                 "query": random.choice(SAMPLE_QUERIES),
                 "engines": ["google"],
                 "max_results": 2,
@@ -201,22 +279,15 @@ class TestAPIEndpointBenchmarks:
             })
             return response
         
-        def run_search():
-            return asyncio.run(perform_search_with_scraping())
-        
         # This will be slower due to scraping
         benchmark.pedantic(run_search, rounds=3, warmup_rounds=1)
     
     @pytest.mark.benchmark(group="api")
-    @pytest.mark.asyncio
-    async def test_health_check_performance(self, benchmark, client):
+    def test_health_check_performance(self, benchmark, client):
         """Benchmark health check endpoint."""
-        async def check_health():
-            response = await client.get("/health")
-            return response
-        
         def run_health_check():
-            return asyncio.run(check_health())
+            response = client.get("/health")
+            return response
         
         response = benchmark(run_health_check)
         assert response.status_code == 200
@@ -226,68 +297,72 @@ class TestConcurrencyBenchmarks:
     """Benchmark concurrent request handling."""
     
     @pytest.mark.benchmark(group="concurrency")
-    @pytest.mark.asyncio
-    async def test_concurrent_searches(self, benchmark):
+    def test_concurrent_searches(self, benchmark, override_settings):
         """Benchmark concurrent search requests."""
-        async def perform_concurrent_searches(num_requests: int):
-            async with AsyncClient(
-                base_url="http://localhost:8000",
-                headers={"X-API-Key": os.getenv("BENCHMARK_API_KEY", "test-key")},
-                timeout=30.0
-            ) as client:
-                tasks = []
-                for i in range(num_requests):
-                    task = client.post("/api/v1/search", json={
-                        "query": f"concurrent test {i}",
-                        "engines": ["google"],
-                        "max_results": 3,
-                        "scrape_content": False,
-                        "cache_ttl": 0
-                    })
-                    tasks.append(task)
+        from fastapi.testclient import TestClient
+        from app.main import app
+        
+        client = TestClient(app)
+        client.headers["X-API-Key"] = "test-key-1"
+        
+        def perform_concurrent_searches(num_requests: int):
+            from concurrent.futures import ThreadPoolExecutor
+            def make_request(i):
+                return client.post("/api/v1/search", json={
+                    "query": f"concurrent test {i}",
+                    "engines": ["google"],
+                    "max_results": 3,
+                    "scrape_content": False,
+                    "cache_ttl": 0
+                })
+            
+            with ThreadPoolExecutor(max_workers=num_requests) as executor:
+                responses = list(executor.map(make_request, range(num_requests)))
                 
-                responses = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                successful = sum(1 for r in responses 
-                               if not isinstance(r, Exception) and r.status_code == 200)
-                return successful, len(responses)
+            successful = sum(1 for r in responses if r.status_code == 200)
+            return successful, len(responses)
         
         def run_concurrent():
-            return asyncio.run(perform_concurrent_searches(10))
+            return perform_concurrent_searches(10)
         
         successful, total = benchmark(run_concurrent)
         assert successful > 0
     
     @pytest.mark.benchmark(group="concurrency")
-    @pytest.mark.asyncio
-    async def test_concurrent_scraping(self, benchmark):
+    def test_concurrent_scraping(self, benchmark):
         """Benchmark concurrent scraping operations."""
         scraper = ContentScrapingService()
         
-        async def perform_concurrent_scraping():
-            await scraper.initialize()
+        # Patch scrape_urls to simulate scraping in parallel without real network calls
+        async def mock_scrape_urls(*args, **kwargs):
+            await asyncio.sleep(0.01)
+            return [{"url": u, "text": "scraped content"} for u in args[0]]
             
-            urls = [
-                "https://example.com",
-                "https://httpbin.org/html",
-                "https://www.python.org"
-            ] * 3  # Total 9 URLs
+        with patch.object(scraper, 'scrape_urls', side_effect=mock_scrape_urls):
+            async def perform_concurrent_scraping():
+                await scraper.initialize()
+                
+                urls = [
+                    "https://example.com",
+                    "https://httpbin.org/html",
+                    "https://www.python.org"
+                ] * 3  # Total 9 URLs
+                
+                config = ScrapingConfig(
+                    urls=urls,
+                    extract_images=True,
+                    extract_links=True
+                )
+                
+                results = await scraper.scrape_urls(urls, config)
+                await scraper.close()
+                return len(results)
             
-            config = ScrapingConfig(
-                urls=urls,
-                extract_images=True,
-                extract_links=True
-            )
+            def run_scraping():
+                return asyncio.run(perform_concurrent_scraping())
             
-            results = await scraper.scrape_urls(urls, config)
-            await scraper.close()
-            return len(results)
-        
-        def run_scraping():
-            return asyncio.run(perform_concurrent_scraping())
-        
-        # Scraping is slow, so fewer rounds
-        benchmark.pedantic(run_scraping, rounds=2, warmup_rounds=1)
+            # Scraping is slow, so fewer rounds
+            benchmark.pedantic(run_scraping, rounds=2, warmup_rounds=1)
 
 
 class TestMemoryBenchmarks:
@@ -328,19 +403,52 @@ class TestMemoryBenchmarks:
     def test_cache_memory_efficiency(self, benchmark):
         """Benchmark cache memory efficiency with compression."""
         cache = CacheService()
+        loop = asyncio.new_event_loop()
+        
+        # Construct valid UnSearchResponse data with large content
+        from app.models.responses import ScrapedContent, ContentMetadata
+        metadata = SearchMetadata(
+            query="large query",
+            engines_used=["google"],
+            engines_succeeded=["google"],
+            total_results_found=100,
+            results_returned=100,
+            search_time_ms=100,
+            timestamp=datetime.utcnow()
+        )
+        large_results = [
+            SearchResult(
+                rank=i,
+                title=f"Result {i}",
+                url="https://example.com",
+                snippet=f"Snippet {i}",
+                engine="google",
+                scraped_content=ScrapedContent(
+                    url="https://example.com",
+                    text="x" * 10000,
+                    extraction_success=True,
+                    extraction_time_ms=250,
+                    word_count=1500,
+                    metadata=ContentMetadata(title="Test Title"),
+                    content_quality_score=0.85
+                )
+            )
+            for i in range(100)
+        ]
+        response_data = UnSearchResponse(
+            search_metadata=metadata,
+            results=large_results,
+            processing_time_ms=150,
+            cached=False,
+            total_results=100,
+            request_id="test-request-id"
+        )
         
         async def test_compression():
             await cache.initialize()
             
-            # Create large data object
-            large_data = {
-                "results": [
-                    {"content": "x" * 10000} for _ in range(100)
-                ]
-            }
-            
             # Store with compression
-            await cache.set_search_results("large_key", large_data, ttl=60)
+            await cache.set_search_results("large_key", response_data, ttl=60)
             
             # Retrieve
             retrieved = await cache.get_search_results("large_key")
@@ -349,10 +457,13 @@ class TestMemoryBenchmarks:
             return retrieved is not None
         
         def run_test():
-            return asyncio.run(test_compression())
+            return loop.run_until_complete(test_compression())
         
-        result = benchmark(run_test)
-        assert result
+        try:
+            result = benchmark(run_test)
+            assert result
+        finally:
+            loop.close()
 
 
 class TestScalingBenchmarks:
@@ -360,43 +471,46 @@ class TestScalingBenchmarks:
     
     @pytest.mark.benchmark(group="scaling")
     @pytest.mark.parametrize("num_users", [1, 5, 10, 20])
-    @pytest.mark.asyncio
-    async def test_scaling_with_users(self, benchmark, num_users):
+    def test_scaling_with_users(self, benchmark, num_users, override_settings):
         """Test how performance scales with number of concurrent users."""
-        async def simulate_users():
-            async with AsyncClient(
-                base_url="http://localhost:8000",
-                headers={"X-API-Key": os.getenv("BENCHMARK_API_KEY", "test-key")},
-                timeout=30.0
-            ) as client:
-                tasks = []
-                for user in range(num_users):
-                    # Each user makes 3 requests
-                    for req in range(3):
-                        task = client.post("/api/v1/search", json={
-                            "query": f"user_{user}_request_{req}",
-                            "engines": ["google"],
-                            "max_results": 5,
-                            "scrape_content": False
-                        })
-                        tasks.append(task)
+        from fastapi.testclient import TestClient
+        from app.main import app
+        
+        client = TestClient(app)
+        client.headers["X-API-Key"] = "test-key-1"
+        
+        def simulate_users():
+            from concurrent.futures import ThreadPoolExecutor
+            def make_user_requests(user_id):
+                responses = []
+                for req in range(3):
+                    res = client.post("/api/v1/search", json={
+                        "query": f"user_{user_id}_request_{req}",
+                        "engines": ["google"],
+                        "max_results": 5,
+                        "scrape_content": False
+                    })
+                    responses.append(res)
+                return responses
                 
-                start = time.time()
-                responses = await asyncio.gather(*tasks, return_exceptions=True)
-                duration = time.time() - start
-                
-                successful = sum(1 for r in responses 
-                               if not isinstance(r, Exception) and r.status_code == 200)
-                
-                return {
-                    "duration": duration,
-                    "requests": len(tasks),
-                    "successful": successful,
-                    "rps": len(tasks) / duration if duration > 0 else 0
-                }
+            start = time.time()
+            with ThreadPoolExecutor(max_workers=num_users) as executor:
+                futures = [executor.submit(make_user_requests, i) for i in range(num_users)]
+                results = [f.result() for f in futures]
+            duration = time.time() - start
+            
+            responses = [r for sublist in results for r in sublist]
+            successful = sum(1 for r in responses if r.status_code == 200)
+            
+            return {
+                "duration": duration,
+                "requests": len(responses),
+                "successful": successful,
+                "rps": len(responses) / duration if duration > 0 else 0
+            }
         
         def run_simulation():
-            return asyncio.run(simulate_users())
+            return simulate_users()
         
         result = benchmark(run_simulation)
         print(f"\n{num_users} users: {result['rps']:.2f} req/s, "
