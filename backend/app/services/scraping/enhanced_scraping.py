@@ -18,6 +18,29 @@ from urllib.parse import urljoin, urlparse
 
 import structlog
 from bs4 import BeautifulSoup
+from app.services.scraping.scraping import _scraping_cpu_executor
+
+def _sync_enhanced_extract(
+    final_content: str,
+    url: str,
+    config: Optional[Any],
+    service_instance: Any
+) -> Dict[str, Any]:
+    soup = BeautifulSoup(final_content, 'lxml')
+    metadata = service_instance._sync_extract_metadata(soup, url)
+    images = service_instance._extract_images(soup, url) if getattr(config, 'extract_images', True) else []
+    links = service_instance._extract_links(soup, url) if getattr(config, 'extract_links', True) else []
+    for element in soup(['script', 'style', 'noscript']):
+        element.decompose()
+    text = sanitize_text(soup.get_text())
+    title = soup.find('title').get_text() if soup.find('title') else metadata.title
+    return {
+        "metadata": metadata,
+        "images": images,
+        "links": links,
+        "text": text,
+        "title": title
+    }
 
 from app.config import get_settings
 from app.models.responses import ScrapedContent, ContentMetadata
@@ -206,24 +229,25 @@ class EnhancedScrapingService(ContentScrapingService):
             )
             
             if scroll_result.success:
-                # Convert virtual scroll result to ScrapedContent
-                soup = BeautifulSoup(scroll_result.final_content, 'lxml')
-                
-                # Extract metadata
-                metadata = await super().extract_metadata(soup, url)
-                
-                # Extract images and links
-                images = super()._extract_images(soup, url) if getattr(config, 'extract_images', True) else []
-                links = super()._extract_links(soup, url) if getattr(config, 'extract_links', True) else []
-                
-                # Get clean text
-                for element in soup(['script', 'style', 'noscript']):
-                    element.decompose()
-                text = sanitize_text(soup.get_text())
+                # Convert virtual scroll result to ScrapedContent in executor
+                loop = asyncio.get_running_loop()
+                extracted = await loop.run_in_executor(
+                    _scraping_cpu_executor,
+                    _sync_enhanced_extract,
+                    scroll_result.final_content,
+                    url,
+                    config,
+                    self
+                )
+                metadata = extracted["metadata"]
+                images = extracted["images"]
+                links = extracted["links"]
+                text = extracted["text"]
+                title = extracted["title"]
                 
                 return ScrapedContent(
                     url=url,
-                    title=soup.find('title').get_text() if soup.find('title') else metadata.title,
+                    title=title,
                     text=text,
                     html=scroll_result.final_content,
                     images=images,
@@ -499,8 +523,12 @@ class EnhancedScrapingService(ContentScrapingService):
             
             # Update text with filtered content if using markdown output
             if getattr(config, 'response_format', 'json') == 'markdown':
-                soup = BeautifulSoup(filtered_content, 'lxml')
-                enhanced_data['text'] = sanitize_text(soup.get_text())
+                loop = asyncio.get_running_loop()
+                text_from_filtered = await loop.run_in_executor(
+                    _scraping_cpu_executor,
+                    lambda: sanitize_text(BeautifulSoup(filtered_content, 'lxml').get_text())
+                )
+                enhanced_data['text'] = text_from_filtered
         
         # Add markdown results
         if markdown_result:

@@ -31,6 +31,25 @@ from app.services.core.cache import get_cache_service
 logger = structlog.get_logger(__name__)
 settings = get_settings()
 
+import concurrent.futures
+
+# Dedicated thread pool executor for CPU-bound scraping and parsing.
+_scraping_cpu_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=32,
+    thread_name_prefix="scraping_cpu"
+)
+
+def _sync_extract_title_from_html(html_text: str) -> str:
+    try:
+        from bs4 import BeautifulSoup
+        s = BeautifulSoup(html_text, 'lxml')
+        t = s.find('title')
+        if t:
+            return sanitize_text(t.get_text())
+    except Exception:
+        pass
+    return ""
+
 
 class ContentScrapingService:
     """Service for web content extraction using BeautifulSoup4."""
@@ -277,58 +296,62 @@ class ContentScrapingService:
                     except Exception as e:
                         logger.warning("url_cache_write_failed", url=url, error=str(e))
             
-            # Parse HTML
-            soup = BeautifulSoup(html_content, 'lxml')
+            # Parse HTML and extract content in executor
+            loop = asyncio.get_running_loop()
+            extracted_data = await loop.run_in_executor(
+                _scraping_cpu_executor,
+                self._sync_parse_and_extract_all,
+                html_content,
+                url,
+                config
+            )
             
-            # Remove script and style elements
-            for element in soup(['script', 'style', 'noscript']):
-                element.decompose()
-                
-            # Extract content based on configuration
-            if config and config.selectors:
-                extracted = await self._extract_with_selectors(soup, config.selectors)
-            else:
-                extracted = await self._extract_main_content(soup, url)
-                
-            # Extract metadata
-            metadata = await self.extract_metadata(soup, url)
+            title = extracted_data["title"]
+            extracted_text = extracted_data["text"]
+            images = extracted_data["images"]
+            links = extracted_data["links"]
+            metadata = extracted_data["metadata"]
             
-            # Extract images if requested
-            images = []
-            if not config or config.extract_images:
-                images = self._extract_images(soup, url)
-                
             # Extract links if requested
-            links = []
-            if not config or config.extract_links:
-                links = self._extract_links(soup, url)
-                # Optional link head enrichment and scoring
-                if config and getattr(config, 'link_head', False) and links:
-                    try:
-                        links = await self._enrich_and_score_links(links, config)
-                    except Exception as e:
-                        logger.warning("link_enrichment_failed", url=url, error=str(e))
+            if config and getattr(config, 'link_head', False) and links:
+                try:
+                    links = await self._enrich_and_score_links(links, config)
+                except Exception as e:
+                    logger.warning("link_enrichment_failed", url=url, error=str(e))
                 
             # Detect language
-            language = detect_language(extracted['text'])
+            language = await loop.run_in_executor(
+                _scraping_cpu_executor,
+                detect_language,
+                extracted_text
+            )
             
             # Calculate quality score
-            quality_score = calculate_text_quality(extracted['text'])
+            quality_score = await loop.run_in_executor(
+                _scraping_cpu_executor,
+                calculate_text_quality,
+                extracted_text
+            )
             
             # Calculate processing time
             extraction_time_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)
             
             # Optionally return Markdown format when requested via config.response_format
             if config and getattr(config, 'response_format', 'json') == 'markdown':
-                markdown_text = self._to_markdown(html_content, base_url=str(url))
+                markdown_text = await loop.run_in_executor(
+                    _scraping_cpu_executor,
+                    self._to_markdown,
+                    html_content,
+                    str(url)
+                )
                 # Overwrite text with markdown output for markdown mode
                 text_out = markdown_text
             else:
-                text_out = extracted['text']
+                text_out = extracted_text
 
             return ScrapedContent(
                 url=url,
-                title=extracted.get('title', metadata.title),
+                title=title,
                 text=text_out,
                 html=html_content if config and hasattr(config, 'include_html') and config.include_html else None,
                 images=images,
@@ -386,46 +409,56 @@ class ContentScrapingService:
     async def _scrape_page_payload(self, url: str, html: str, config: ScrapingConfig, page_meta: Optional[Dict[str, Any]] = None) -> ScrapedContent:
         """Scrape using provided HTML payload (from Puppeteer)."""
         start_time = asyncio.get_event_loop().time()
-        soup = BeautifulSoup(html or "", 'lxml')
-        for element in soup(['script', 'style', 'noscript']):
-            element.decompose()
+        loop = asyncio.get_running_loop()
+        extracted_data = await loop.run_in_executor(
+            _scraping_cpu_executor,
+            self._sync_parse_and_extract_all,
+            html,
+            url,
+            config
+        )
+        
+        title = extracted_data["title"]
+        extracted_text = extracted_data["text"]
+        images = extracted_data["images"]
+        links = extracted_data["links"]
+        metadata = extracted_data["metadata"]
 
-        if config and config.selectors:
-            extracted = await self._extract_with_selectors(soup, config.selectors)
-        else:
-            extracted = await self._extract_main_content(soup, url)
-
-        metadata = await self.extract_metadata(soup, url)
-
-        images = []
-        if not config or config.extract_images:
-            images = self._extract_images(soup, url)
-
-        links = []
-        if not config or config.extract_links:
-            links = self._extract_links(soup, url)
-            # Optional link head enrichment and scoring
-            if getattr(config, 'link_head', False) and links:
-                try:
-                    links = await self._enrich_and_score_links(links, config)
-                except Exception as e:
-                    logger.warning("link_enrichment_failed", url=url, error=str(e))
+        # Optional link head enrichment and scoring
+        if getattr(config, 'link_head', False) and links:
+            try:
+                links = await self._enrich_and_score_links(links, config)
+            except Exception as e:
+                logger.warning("link_enrichment_failed", url=url, error=str(e))
 
         # Optionally return Markdown
         if getattr(config, 'response_format', 'json') == 'markdown':
-            markdown_text = self._to_markdown(html, base_url=str(url))
+            markdown_text = await loop.run_in_executor(
+                _scraping_cpu_executor,
+                self._to_markdown,
+                html,
+                str(url)
+            )
             text_out = markdown_text
         else:
-            text_out = extracted['text']
+            text_out = extracted_text
 
-        language = detect_language(text_out)
-        quality_score = calculate_text_quality(text_out)
+        language = await loop.run_in_executor(
+            _scraping_cpu_executor,
+            detect_language,
+            text_out
+        )
+        quality_score = await loop.run_in_executor(
+            _scraping_cpu_executor,
+            calculate_text_quality,
+            text_out
+        )
         extraction_time_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)
 
         html_out = html if config and getattr(config, 'include_html', False) else None
         return ScrapedContent(
             url=url,
-            title=extracted.get('title', metadata.title),
+            title=title,
             text=text_out,
             html=html_out,
             images=images,
@@ -479,10 +512,12 @@ class ContentScrapingService:
                         title_text = ""
                         if ok and resp.headers.get("content-type", "").startswith("text/html"):
                             try:
-                                s = BeautifulSoup(resp.text, 'lxml')
-                                t = s.find('title')
-                                if t:
-                                    title_text = sanitize_text(t.get_text())
+                                loop = asyncio.get_running_loop()
+                                title_text = await loop.run_in_executor(
+                                    _scraping_cpu_executor,
+                                    _sync_extract_title_from_html,
+                                    resp.text
+                                )
                             except Exception:
                                 title_text = ""
                         return {"url": u, "ok": ok, "title": title_text}
@@ -514,26 +549,51 @@ class ContentScrapingService:
         scored.sort(key=lambda x: (-x[0], x[1]))
         return [u for _, u in scored]
             
-    async def _extract_main_content(self, soup: BeautifulSoup, url: str) -> Dict[str, str]:
+    def _sync_parse_and_extract_all(
+        self,
+        html_content: str,
+        url: str,
+        config: Optional[ScrapingConfig]
+    ) -> Dict[str, Any]:
+        soup = BeautifulSoup(html_content, 'lxml')
+        
+        # Extract metadata first, before decomposing script and style elements
+        metadata = self._sync_extract_metadata(soup, url)
+        
+        # Remove script and style elements
+        for element in soup(['script', 'style', 'noscript']):
+            element.decompose()
+            
+        # Extract content based on configuration
+        if config and config.selectors:
+            extracted = self._sync_extract_with_selectors(soup, config.selectors)
+        else:
+            extracted = self._sync_extract_main_content(soup, url)
+        
+        # Extract images if requested
+        images = []
+        if not config or config.extract_images:
+            images = self._extract_images(soup, url)
+            
+        # Extract links if requested
+        links = []
+        if not config or config.extract_links:
+            links = self._extract_links(soup, url)
+            
+        return {
+            "title": extracted.get('title', metadata.title),
+            "text": extracted['text'],
+            "images": images,
+            "links": links,
+            "metadata": metadata
+        }
+
+    def _sync_extract_main_content(self, soup: BeautifulSoup, url: str) -> Dict[str, str]:
         """
         Extract main content using multiple strategies.
         
         Returns dict with 'title' and 'text' keys.
         """
-        # Strategy 1: Try Readability algorithm (if available)
-        # Uncomment if readability-lxml is installed
-        # try:
-        #     doc = Readability(str(soup))
-        #     summary = doc.summary()
-        #     summary_soup = BeautifulSoup(summary, 'lxml')
-        #     
-        #     return {
-        #         'title': doc.title() or self._extract_title(soup),
-        #         'text': sanitize_text(summary_soup.get_text())
-        #     }
-        # except:
-        #     pass
-            
         # Strategy 2: Look for common content containers
         content_selectors = [
             'main',
@@ -579,8 +639,12 @@ class ContentScrapingService:
             'title': self._extract_title(soup),
             'text': sanitize_text(soup.get_text())
         }
-        
-    async def _extract_with_selectors(
+
+    async def _extract_main_content(self, soup: BeautifulSoup, url: str) -> Dict[str, str]:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_scraping_cpu_executor, self._sync_extract_main_content, soup, url)
+
+    def _sync_extract_with_selectors(
         self, 
         soup: BeautifulSoup, 
         selectors: Dict[str, str]
@@ -623,28 +687,16 @@ class ContentScrapingService:
                 result['text'] = '\n'.join(text_parts)
                 
         return result
-        
-    def _extract_title(self, soup: BeautifulSoup) -> str:
-        """Extract page title using multiple strategies."""
-        # Try standard title tag
-        title_tag = soup.find('title')
-        if title_tag:
-            return sanitize_text(title_tag.get_text())
-            
-        # Try meta property
-        meta_title = soup.find('meta', property='og:title')
-        if meta_title and meta_title.get('content'):
-            return sanitize_text(meta_title['content'])
-            
-        # Try h1 tag
-        h1_tag = soup.find('h1')
-        if h1_tag:
-            return sanitize_text(h1_tag.get_text())
-            
-        return "Untitled"
-        
-    async def extract_metadata(self, soup: BeautifulSoup, url: str) -> ContentMetadata:
-        """Extract structured metadata from the page."""
+
+    async def _extract_with_selectors(
+        self, 
+        soup: BeautifulSoup, 
+        selectors: Dict[str, str]
+    ) -> Dict[str, str]:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_scraping_cpu_executor, self._sync_extract_with_selectors, soup, selectors)
+
+    def _sync_extract_metadata(self, soup: BeautifulSoup, url: str) -> ContentMetadata:
         metadata = ContentMetadata()
         
         # Extract title
@@ -699,6 +751,30 @@ class ContentScrapingService:
                 pass
                 
         return metadata
+
+    async def extract_metadata(self, soup: BeautifulSoup, url: str) -> ContentMetadata:
+        """Extract structured metadata from the page."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_scraping_cpu_executor, self._sync_extract_metadata, soup, url)
+
+    def _extract_title(self, soup: BeautifulSoup) -> str:
+        """Extract page title using multiple strategies."""
+        # Try standard title tag
+        title_tag = soup.find('title')
+        if title_tag:
+            return sanitize_text(title_tag.get_text())
+            
+        # Try meta property
+        meta_title = soup.find('meta', property='og:title')
+        if meta_title and meta_title.get('content'):
+            return sanitize_text(meta_title['content'])
+            
+        # Try h1 tag
+        h1_tag = soup.find('h1')
+        if h1_tag:
+            return sanitize_text(h1_tag.get_text())
+            
+        return "Untitled"
         
     def _extract_images(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         """Extract all images from the page."""

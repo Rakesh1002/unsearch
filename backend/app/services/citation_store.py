@@ -12,6 +12,7 @@ Storage backend is selected via CITATION_SNAPSHOT_STORE_TYPE env var:
 - "r2": Cloudflare R2 bucket via boto3 S3-compatible API
 """
 import asyncio
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -30,6 +31,12 @@ from app.models.responses import ScrapedContent
 from app.services.citation_signer import get_citation_signer
 
 logger = structlog.get_logger(__name__)
+
+# Dedicated thread pool executor for CPU-bound citation content normalization.
+_citation_cpu_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=16,
+    thread_name_prefix="citation_cpu"
+)
 
 
 def _detect_content_type(content_bytes: bytes, headers: Optional[Dict[str, str]]) -> str:
@@ -289,15 +296,18 @@ class CitationStore:
     ) -> SnapshotBundle:
         """Normalize content, persist bundle, return bundle metadata."""
         fetched_at = fetched_at or datetime.utcnow()
-        bundle = _build_bundle(
-            url=url,
-            raw_bytes=raw_bytes,
-            content_type=content_type,
-            headers=headers or {},
-            engine=engine,
-            fetched_at=fetched_at,
-            request_id=request_id,
-            redirects=redirects,
+        loop = asyncio.get_running_loop()
+        bundle = await loop.run_in_executor(
+            _citation_cpu_executor,
+            _build_bundle,
+            url,
+            raw_bytes,
+            content_type,
+            headers or {},
+            engine,
+            fetched_at,
+            request_id,
+            redirects,
         )
         return await self._persist_bundle(bundle)
 
