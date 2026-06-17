@@ -10,7 +10,7 @@ Enterprise-grade edge AI for UnSearch RAG pipeline:
 
 50K credits available for inference at the edge.
 
-Model Selection Strategy (consistent with workers/src/config/models.ts):
+Model Selection Strategy (aligned with the Workers model tier selection in workers/src/lib/workers-ai.ts):
 - SPEED: llama-3.2-3b-instruct (ultra-fast, <100ms, simple queries)
 - BALANCED: llama-3.3-70b-instruct-fp8-fast (best quality/speed balance)
 - QUALITY: gpt-oss-120b (highest quality, production use)
@@ -110,7 +110,8 @@ class ModelTier(str, Enum):
     """
     Model tiers for automatic selection based on query complexity.
     
-    Consistent with workers/src/config/models.ts TIER_MODELS mapping.
+    Keep in sync with Workers model tier selection logic in 
+    workers/src/lib/workers-ai.ts.
     """
     SPEED = "speed"  # Ultra-fast, simple queries (<100ms)
     BALANCED = "balanced"  # Best quality/speed balance (default)
@@ -119,7 +120,7 @@ class ModelTier(str, Enum):
 
 
 # Tier to model mapping
-# Consistent with workers/src/config/models.ts TIER_MODELS
+# consistent with Workers model tier selection logic in workers/src/lib/workers-ai.ts
 TIER_MODELS = {
     ModelTier.SPEED: CFModel.LLAMA_3_2_3B,  # Ultra-fast for simple tasks
     ModelTier.BALANCED: CFModel.LLAMA_3_3_70B_FAST,  # Best quality/speed balance
