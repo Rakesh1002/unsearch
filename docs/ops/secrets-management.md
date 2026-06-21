@@ -1,9 +1,13 @@
+---
+rros_project: unsearch
+rros_doc_id: unsearch/docs/ops/secrets-management.md
+notion_page_id: 386e4a4b-2a11-8182-9994-e6b6acddbb3e
+rros_domain: ops
+---
+
 # Secrets Management Guide
-
 This guide provides comprehensive instructions for managing secrets, API keys, and sensitive configuration in the UnSearch API system.
-
 ## Table of Contents
-
 1. [Overview](#overview)
 2. [Secret Types](#secret-types)
 3. [Local Development](#local-development)
@@ -11,65 +15,135 @@ This guide provides comprehensive instructions for managing secrets, API keys, a
 5. [Secret Rotation](#secret-rotation)
 6. [Security Best Practices](#security-best-practices)
 7. [Troubleshooting](#troubleshooting)
-
 ## Overview
-
 The UnSearch API uses multiple layers of secret management to ensure security:
-
 - **Environment Variables**: For configuration and non-sensitive settings
 - **Secret Stores**: For sensitive credentials (passwords, API keys, tokens)
 - **Key Management Services**: For encryption keys and certificates
 - **Audit Logging**: For tracking secret access and changes
-
 ## Secret Types
-
 ### 1. Application Secrets
-
-| Secret               | Description          | Rotation Frequency | Impact                        |
-| -------------------- | -------------------- | ------------------ | ----------------------------- |
-| `SECRET_KEY`         | JWT signing key      | 90 days            | High - Invalidates all tokens |
-| `API_KEYS`           | Client API keys      | On demand          | Medium - Per client           |
-| `SEARXNG_SECRET_KEY` | SearXNG instance key | 180 days           | Low                           |
-
+<table header-row="true">
+<tr>
+<td>Secret</td>
+<td>Description</td>
+<td>Rotation Frequency</td>
+<td>Impact</td>
+</tr>
+<tr>
+<td>`SECRET_KEY`</td>
+<td>JWT signing key</td>
+<td>90 days</td>
+<td>High - Invalidates all tokens</td>
+</tr>
+<tr>
+<td>`API_KEYS`</td>
+<td>Client API keys</td>
+<td>On demand</td>
+<td>Medium - Per client</td>
+</tr>
+<tr>
+<td>`SEARXNG_SECRET_KEY`</td>
+<td>SearXNG instance key</td>
+<td>180 days</td>
+<td>Low</td>
+</tr>
+</table>
 ### 2. Database Credentials
-
-| Secret              | Description           | Rotation Frequency | Impact                   |
-| ------------------- | --------------------- | ------------------ | ------------------------ |
-| `DATABASE_URL`      | PostgreSQL connection | 90 days            | High - Requires downtime |
-| `DB_PASSWORD`       | Database password     | 90 days            | High                     |
-| `DB_ENCRYPTION_KEY` | Data encryption key   | Never\*            | Critical                 |
-
+<table header-row="true">
+<tr>
+<td>Secret</td>
+<td>Description</td>
+<td>Rotation Frequency</td>
+<td>Impact</td>
+</tr>
+<tr>
+<td>`DATABASE_URL`</td>
+<td>PostgreSQL connection</td>
+<td>90 days</td>
+<td>High - Requires downtime</td>
+</tr>
+<tr>
+<td>`DB_PASSWORD`</td>
+<td>Database password</td>
+<td>90 days</td>
+<td>High</td>
+</tr>
+<tr>
+<td>`DB_ENCRYPTION_KEY`</td>
+<td>Data encryption key</td>
+<td>Never\*</td>
+<td>Critical</td>
+</tr>
+</table>
 \*Encryption keys should be versioned, not rotated
-
 ### 3. External Service Keys
-
-| Secret                  | Description     | Rotation Frequency | Impact |
-| ----------------------- | --------------- | ------------------ | ------ |
-| `AWS_ACCESS_KEY_ID`     | AWS credentials | 60 days            | Medium |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret      | 60 days            | Medium |
-| `SENTRY_DSN`            | Error tracking  | On demand          | Low    |
-| `SLACK_WEBHOOK_URL`     | Notifications   | On demand          | Low    |
-
+<table header-row="true">
+<tr>
+<td>Secret</td>
+<td>Description</td>
+<td>Rotation Frequency</td>
+<td>Impact</td>
+</tr>
+<tr>
+<td>`AWS_ACCESS_KEY_ID`</td>
+<td>AWS credentials</td>
+<td>60 days</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>`AWS_SECRET_ACCESS_KEY`</td>
+<td>AWS secret</td>
+<td>60 days</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>`SENTRY_DSN`</td>
+<td>Error tracking</td>
+<td>On demand</td>
+<td>Low</td>
+</tr>
+<tr>
+<td>`SLACK_WEBHOOK_URL`</td>
+<td>Notifications</td>
+<td>On demand</td>
+<td>Low</td>
+</tr>
+</table>
 ### 4. Infrastructure Secrets
-
-| Secret                    | Description  | Rotation Frequency | Impact |
-| ------------------------- | ------------ | ------------------ | ------ |
-| `REDIS_PASSWORD`          | Cache auth   | 90 days            | Medium |
-| `CELERY_BROKER_URL`       | Queue auth   | 90 days            | Medium |
-| `PROMETHEUS_BEARER_TOKEN` | Metrics auth | 180 days           | Low    |
-
+<table header-row="true">
+<tr>
+<td>Secret</td>
+<td>Description</td>
+<td>Rotation Frequency</td>
+<td>Impact</td>
+</tr>
+<tr>
+<td>`REDIS_PASSWORD`</td>
+<td>Cache auth</td>
+<td>90 days</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>`CELERY_BROKER_URL`</td>
+<td>Queue auth</td>
+<td>90 days</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>`PROMETHEUS_BEARER_TOKEN`</td>
+<td>Metrics auth</td>
+<td>180 days</td>
+<td>Low</td>
+</tr>
+</table>
 ## Local Development
-
 ### Using .env Files
-
 1. **Create .env from template**:
-
 ```bash
 cp .env.example .env
 ```
-
-2. **Generate secure secrets**:
-
+1. **Generate secure secrets**:
 ```bash
 # Generate SECRET_KEY
 python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -80,17 +154,12 @@ python -c "import secrets; print(f'sk_{secrets.token_urlsafe(32)}')"
 # Generate strong password
 openssl rand -base64 32
 ```
-
-3. **Set permissions**:
-
+1. **Set permissions**:
 ```bash
 chmod 600 .env
 ```
-
 ### Using direnv (Recommended)
-
 1. **Install direnv**:
-
 ```bash
 # macOS
 brew install direnv
@@ -98,9 +167,7 @@ brew install direnv
 # Linux
 apt-get install direnv
 ```
-
-2. **Create .envrc**:
-
+1. **Create .envrc**:
 ```bash
 cat > .envrc << 'EOF'
 # Load environment variables
@@ -113,19 +180,13 @@ PATH_add scripts
 source venv/bin/activate
 EOF
 ```
-
-3. **Allow direnv**:
-
+1. **Allow direnv**:
 ```bash
 direnv allow
 ```
-
 ## Production Deployment
-
 ### Using AWS Secrets Manager
-
 1. **Store secrets in AWS**:
-
 ```bash
 # Create secret
 aws secretsmanager create-secret \
@@ -137,9 +198,7 @@ aws secretsmanager update-secret \
     --secret-id UnSearch/production/api \
     --secret-string file://secrets.json
 ```
-
-2. **Retrieve secrets in application**:
-
+1. **Retrieve secrets in application**:
 ```python
 import boto3
 import json
@@ -149,9 +208,7 @@ def get_secrets():
     response = client.get_secret_value(SecretId='UnSearch/production/api')
     return json.loads(response['SecretString'])
 ```
-
-3. **IAM policy for access**:
-
+1. **IAM policy for access**:
 ```json
 {
   "Version": "2012-10-17",
@@ -167,20 +224,15 @@ def get_secrets():
   ]
 }
 ```
-
 ### Using HashiCorp Vault
-
 1. **Install Vault**:
-
 ```bash
 # Docker
 docker run -d --cap-add=IPC_LOCK \
     -e 'VAULT_LOCAL_CONFIG={"storage": {"file": {"path": "/vault/file"}}, "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}}}' \
     -p 8200:8200 vault:latest
 ```
-
-2. **Store secrets**:
-
+1. **Store secrets**:
 ```bash
 # Enable KV secrets engine
 vault secrets enable -path=UnSearch kv-v2
@@ -191,9 +243,7 @@ vault kv put UnSearch/production \
     redis_url="redis://..." \
     secret_key="..."
 ```
-
-3. **Retrieve secrets**:
-
+1. **Retrieve secrets**:
 ```python
 import hvac
 
@@ -203,11 +253,8 @@ secrets = client.secrets.kv.v2.read_secret_version(
     mount_point='UnSearch'
 )['data']['data']
 ```
-
 ### Using Kubernetes Secrets
-
 1. **Create secret**:
-
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -220,15 +267,11 @@ data:
   redis-url: <base64-encoded-value>
   secret-key: <base64-encoded-value>
 ```
-
-2. **Apply secret**:
-
+1. **Apply secret**:
 ```bash
 kubectl apply -f secrets.yaml
 ```
-
-3. **Use in deployment**:
-
+1. **Use in deployment**:
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -241,19 +284,14 @@ spec:
             - secretRef:
                 name: UnSearch-secrets
 ```
-
 ### Using Docker Secrets
-
 1. **Create secrets**:
-
 ```bash
 # Create secret files
 echo "postgresql://..." | docker secret create db_url -
 echo "redis://..." | docker secret create redis_url -
 ```
-
-2. **Use in docker-compose**:
-
+1. **Use in docker-compose**:
 ```yaml
 version: "3.8"
 services:
@@ -271,11 +309,8 @@ secrets:
   redis_url:
     external: true
 ```
-
 ## Secret Rotation
-
 ### Automated Rotation Script
-
 ```bash
 #!/bin/bash
 # scripts/rotate-secrets.sh
@@ -292,9 +327,7 @@ aws secretsmanager update-secret \
 # Restart services
 docker-compose restart api celery-worker
 ```
-
 ### Manual Rotation Procedure
-
 1. **Generate new secret**
 2. **Update secret in staging**
 3. **Test in staging**
@@ -303,9 +336,7 @@ docker-compose restart api celery-worker
 6. **Deploy with new secret**
 7. **Verify functionality**
 8. **Revoke old secret**
-
 ### API Key Rotation
-
 ```python
 # Generate new API key
 import secrets
@@ -333,14 +364,10 @@ def rotate_api_key(old_key_id):
 
     return new_key
 ```
-
 ## Security Best Practices
-
 ### 1. Never Commit Secrets
-
 **.gitignore**:
-
-```gitignore
+```plain text
 # Environment files
 .env
 .env.*
@@ -357,11 +384,8 @@ credentials/
 *.tfstate
 *.tfstate.*
 ```
-
 ### 2. Use Secret Scanning
-
 **Pre-commit hook** (`.pre-commit-config.yaml`):
-
 ```yaml
 repos:
   - repo: https://github.com/Yelp/detect-secrets
@@ -370,9 +394,7 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
 ```
-
 ### 3. Encrypt Secrets at Rest
-
 ```python
 from cryptography.fernet import Fernet
 
@@ -386,9 +408,7 @@ def decrypt_secret(encrypted: str, key: bytes) -> str:
     decrypted = f.decrypt(encrypted.encode())
     return decrypted.decode()
 ```
-
 ### 4. Audit Secret Access
-
 ```python
 import logging
 from datetime import datetime
@@ -405,9 +425,7 @@ def log_secret_access(user_id: str, secret_name: str, action: str):
         'user_agent': get_user_agent()
     })
 ```
-
 ### 5. Principle of Least Privilege
-
 ```yaml
 # IAM Policy Example
 {
@@ -426,39 +444,28 @@ def log_secret_access(user_id: str, secret_name: str, action: str):
     ],
 }
 ```
-
 ## Environment-Specific Configuration
-
 ### Development
-
 ```bash
 # .env.development
 DEBUG=true
 SECRET_KEY=development-only-secret
 DATABASE_URL=postgresql://dev:dev@localhost:5432/UnSearch_dev
 ```
-
 ### Staging
-
 ```bash
 # Use AWS Secrets Manager
 export SECRET_ARN=arn:aws:secretsmanager:us-east-1:123456789012:secret:UnSearch/staging
 ```
-
 ### Production
-
 ```bash
 # Use Vault
 export VAULT_ADDR=https://vault.example.com:8200
 export VAULT_TOKEN=$(vault login -method=aws -token-only)
 ```
-
 ## Troubleshooting
-
 ### Common Issues
-
 1. **Secret not found**:
-
 ```bash
 # Check environment
 env | grep -i secret
@@ -469,9 +476,7 @@ aws secretsmanager get-secret-value --secret-id UnSearch/production
 # Check permissions
 aws sts get-caller-identity
 ```
-
-2. **Permission denied**:
-
+1. **Permission denied**:
 ```bash
 # Verify IAM role
 aws sts assume-role --role-arn arn:aws:iam::123456789012:role/UnSearch-api
@@ -479,9 +484,7 @@ aws sts assume-role --role-arn arn:aws:iam::123456789012:role/UnSearch-api
 # Check policy
 aws iam get-role-policy --role-name UnSearch-api --policy-name secrets-access
 ```
-
-3. **Secret rotation failed**:
-
+1. **Secret rotation failed**:
 ```bash
 # Check rotation status
 aws secretsmanager describe-secret --secret-id UnSearch/production
@@ -492,11 +495,8 @@ aws secretsmanager list-secret-version-ids --secret-id UnSearch/production
 # Manually trigger rotation
 aws secretsmanager rotate-secret --secret-id UnSearch/production
 ```
-
 ### Emergency Procedures
-
 1. **Compromised Secret**:
-
 ```bash
 # 1. Immediately rotate the secret
 ./scripts/emergency-rotation.sh <secret-name>
@@ -510,9 +510,7 @@ kubectl rollout restart deployment/UnSearch-api
 # 4. Notify security team
 ./scripts/security-notification.sh --severity critical
 ```
-
-2. **Lost Access to Secrets**:
-
+1. **Lost Access to Secrets**:
 ```bash
 # 1. Use break-glass credentials
 export BREAK_GLASS_TOKEN=$(cat /secure/break-glass-token)
@@ -523,55 +521,38 @@ vault operator unseal
 # 3. Re-encrypt secrets
 ./scripts/re-encrypt-all-secrets.sh
 ```
-
 ## Compliance and Regulations
-
 ### GDPR Compliance
-
 - Encrypt PII at rest and in transit
 - Implement key versioning for data portability
 - Maintain audit logs for 2 years
-
 ### SOC 2 Requirements
-
 - Rotate secrets every 90 days
 - Use MFA for secret access
 - Implement secret scanning in CI/CD
-
 ### PCI DSS
-
 - Never store unencrypted card data
 - Use HSM for payment-related keys
 - Implement split knowledge for critical secrets
-
 ## Tools and References
-
 ### Secret Management Tools
-
 - [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)
 - [HashiCorp Vault](https://www.vaultproject.io/)
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [Docker Secrets](https://docs.docker.com/engine/swarm/secrets/)
 - [Azure Key Vault](https://azure.microsoft.com/en-us/services/key-vault/)
 - [Google Secret Manager](https://cloud.google.com/secret-manager)
-
 ### Security Scanners
-
 - [detect-secrets](https://github.com/Yelp/detect-secrets)
 - [git-secrets](https://github.com/awslabs/git-secrets)
 - [truffleHog](https://github.com/trufflesecurity/trufflehog)
 - [GitLeaks](https://github.com/zricethezav/gitleaks)
-
 ### Encryption Libraries
-
 - [cryptography](https://cryptography.io/)
 - [pynacl](https://pynacl.readthedocs.io/)
 - [passlib](https://passlib.readthedocs.io/)
-
 ## Contact Information
-
 For security concerns or questions:
-
-- Security contact: security@unsearch.dev
-- On-call: _your paging tool_
-- Chat: _your security channel_
+- Security contact: [security@unsearch.dev](mailto:security@unsearch.dev)
+- On-call: *your paging tool*
+- Chat: *your security channel*
