@@ -241,3 +241,6 @@ Mirrors the approved plan in `~/.claude/plans/app-unsearch-dev-is-not-deployed-l
 - **API reference:** `http://localhost:8000/docs` (local) / [api.unsearch.dev/docs](https://api.unsearch.dev/docs) (after Week 1 deploy)
 - **Edge Worker docs:** [`apps/workers/README.md`](../apps/workers/README.md)
 - **Approved 3-week rebuild plan:** `~/.claude/plans/app-unsearch-dev-is-not-deployed-luminous-wilkinson.md`
+
+---
+**Owner:** Rakesh Roushan · **Last reviewed:** 2026-06-21 · **Review by:** 2026-09-21

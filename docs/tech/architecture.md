@@ -187,3 +187,6 @@ From [docs/roadmap.md § Technical Debt](./roadmap.md):
 - **Deploy step-by-step.** See [`deployment/`](./deployment/) and [`quickstart.md`](./quickstart.md).
 - **On-call playbook.** See [`operations/RUNBOOKS.md`](./operations/RUNBOOKS.md).
 - **Where does that file live?** See [`what-is-what.md`](./what-is-what.md).
+
+---
+**Owner:** Rakesh Roushan · **Last reviewed:** 2026-06-21 · **Review by:** 2026-09-21

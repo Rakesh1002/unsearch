@@ -114,3 +114,6 @@ Cross-references:
 - See [ICP](./icp.md) for who buys.
 - See [Positioning](./positioning.md) for how we describe ourselves.
 - See [MRR plan](./mrr-plan.md) for the realistic revenue path this market enables.
+
+---
+**Owner:** Rakesh Roushan · **Last reviewed:** 2026-06-21 · **Review by:** 2026-09-21
