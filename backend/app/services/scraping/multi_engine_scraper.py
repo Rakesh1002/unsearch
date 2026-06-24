@@ -5,6 +5,7 @@ Provides sophisticated engine selection and fallback capabilities for various co
 """
 
 import asyncio
+import concurrent.futures
 import time
 from typing import Dict, List, Optional, Any, Union, Tuple
 from enum import Enum
@@ -21,6 +22,31 @@ from app.utils.text_processing import sanitize_text, detect_language, calculate_
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
+
+# Dedicated thread pool executor for CPU-bound scraper parsing in multi-engine scraper.
+# Avoids exhausting the global default thread pool executor.
+_multi_scraper_cpu_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=32,
+    thread_name_prefix="multi_scraper_cpu"
+)
+
+
+def _sync_fast_scrape_parse(html_text: str) -> Tuple[str, str, str, float]:
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, 'lxml')
+    
+    # Clean content
+    for element in soup(['script', 'style', 'noscript']):
+        element.decompose()
+    
+    text = sanitize_text(soup.get_text())
+    title = soup.find('title').get_text() if soup.find('title') else ""
+    
+    # Text metrics are also CPU-bound, run them here
+    lang = detect_language(text)
+    quality = calculate_text_quality(text)
+    
+    return title, text, lang, quality
 
 
 class EngineType(Enum):
@@ -182,16 +208,12 @@ class IndexEngine(BaseEngine):
         response = await self.client.get(request.url)
         response.raise_for_status()
         
-        # Basic content extraction
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(response.text, 'lxml')
-        
-        # Clean content
-        for element in soup(['script', 'style', 'noscript']):
-            element.decompose()
-        
-        text = sanitize_text(soup.get_text())
-        title = soup.find('title').get_text() if soup.find('title') else ""
+        loop = asyncio.get_running_loop()
+        title, text, lang, quality = await loop.run_in_executor(
+            _multi_scraper_cpu_executor,
+            _sync_fast_scrape_parse,
+            response.text
+        )
         
         return ScrapedContent(
             url=request.url,
@@ -200,8 +222,8 @@ class IndexEngine(BaseEngine):
             html=response.text,
             extraction_success=True,
             word_count=len(text.split()) if text else 0,
-            language_detected=detect_language(text),
-            content_quality_score=calculate_text_quality(text),
+            language_detected=lang,
+            content_quality_score=quality,
             metadata=ContentMetadata()
         )
 
