@@ -132,22 +132,24 @@ class TestVectorStore:
     """Tests for VectorStore."""
     
     @pytest.fixture
-    def vector_store(self):
+    async def vector_store(self):
         """Create a VectorStore instance."""
         return VectorStore()
     
-    def test_add_vectors(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_add_vectors(self, vector_store):
         """Test adding vectors to the store."""
         vectors = [
             ("id1", [0.1, 0.2, 0.3], {"title": "Test 1"}),
             ("id2", [0.4, 0.5, 0.6], {"title": "Test 2"}),
         ]
         
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         assert vector_store.get_corpus_size("test_corpus") == 2
     
-    def test_search_basic(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_search_basic(self, vector_store):
         """Test basic vector search."""
         # Add vectors
         vectors = [
@@ -155,10 +157,10 @@ class TestVectorStore:
             ("id2", [0.0, 1.0, 0.0], {"title": "Test 2"}),
             ("id3", [0.0, 0.0, 1.0], {"title": "Test 3"}),
         ]
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         # Search with query similar to id1
-        results = vector_store.search(
+        results = await vector_store.search(
             corpus_id="test_corpus",
             query_embedding=[0.9, 0.1, 0.0],
             limit=2
@@ -169,16 +171,17 @@ class TestVectorStore:
         assert results[0][0] == "id1"
         assert results[0][1] > 0.5  # High similarity
     
-    def test_search_with_min_score(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_search_with_min_score(self, vector_store):
         """Test search with minimum score filter."""
         vectors = [
             ("id1", [1.0, 0.0, 0.0], {"title": "Test 1"}),
             ("id2", [0.0, 1.0, 0.0], {"title": "Test 2"}),
         ]
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         # Search with high min_score
-        results = vector_store.search(
+        results = await vector_store.search(
             corpus_id="test_corpus",
             query_embedding=[1.0, 0.0, 0.0],
             limit=10,
@@ -189,9 +192,10 @@ class TestVectorStore:
         assert len(results) == 1
         assert results[0][0] == "id1"
     
-    def test_search_empty_corpus(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_search_empty_corpus(self, vector_store):
         """Test search on non-existent corpus."""
-        results = vector_store.search(
+        results = await vector_store.search(
             corpus_id="nonexistent",
             query_embedding=[1.0, 0.0, 0.0],
             limit=10
@@ -199,20 +203,22 @@ class TestVectorStore:
         
         assert len(results) == 0
     
-    def test_delete_corpus(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_delete_corpus(self, vector_store):
         """Test deleting a corpus."""
         vectors = [
             ("id1", [1.0, 0.0, 0.0], {"title": "Test 1"}),
         ]
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         assert vector_store.get_corpus_size("test_corpus") == 1
         
-        vector_store.delete_corpus("test_corpus")
+        await vector_store.delete_corpus("test_corpus")
         
         assert vector_store.get_corpus_size("test_corpus") == 0
     
-    def test_get_corpus_size(self, vector_store):
+    @pytest.mark.asyncio
+    async def test_get_corpus_size(self, vector_store):
         """Test getting corpus size."""
         assert vector_store.get_corpus_size("nonexistent") == 0
         
@@ -220,7 +226,7 @@ class TestVectorStore:
             ("id1", [1.0, 0.0, 0.0], {"title": "Test 1"}),
             ("id2", [0.0, 1.0, 0.0], {"title": "Test 2"}),
         ]
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         assert vector_store.get_corpus_size("test_corpus") == 2
 
@@ -264,7 +270,7 @@ class TestEmbeddingService:
         embeddings = await service.generate_embeddings(["test"])
         
         assert len(embeddings) == 1
-        assert embeddings[0] == [0.0] * 1536
+        assert embeddings[0] == [0.0] * 768
     
     @pytest.mark.asyncio
     async def test_generate_single_embedding(self, embedding_service):
@@ -418,7 +424,7 @@ class TestRAGService:
             ("id1", [1.0, 0.0, 0.0] * 512, {"url": "https://example.com/1", "title": "Article 1", "summary": "Summary 1"}),
             ("id2", [0.0, 1.0, 0.0] * 512, {"url": "https://example.com/2", "title": "Article 2", "summary": "Summary 2"}),
         ]
-        rag_service.vector_store.add_vectors("test_corpus", vectors)
+        await rag_service.vector_store.add_vectors("test_corpus", vectors)
         
         # Mock embedding generation
         rag_service.embedding_service.generate_single_embedding = AsyncMock(
@@ -453,10 +459,10 @@ class TestRAGServiceIntegration:
             for i, emb in enumerate(embeddings)
         ]
         
-        vector_store.add_vectors("test_corpus", vectors)
+        await vector_store.add_vectors("test_corpus", vectors)
         
         # Search
-        results = vector_store.search(
+        results = await vector_store.search(
             corpus_id="test_corpus",
             query_embedding=[0.15] * 1536,
             limit=2

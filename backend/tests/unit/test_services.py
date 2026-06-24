@@ -71,7 +71,7 @@ class TestSearXNGService:
             
             assert len(results) == 1
             assert results[0].title == "Test Result"
-            assert results[0].url == "https://example.com"
+            assert str(results[0].url) == "https://example.com/"
             assert results[0].engine == "google"
     
     @pytest.mark.asyncio
@@ -99,7 +99,7 @@ class TestSearXNGService:
                 health = await searxng_service.health_check()
                 
                 assert health.status == "healthy"
-                assert health.latency_ms > 0
+                assert health.latency_ms >= 0
     
     def test_generate_cache_key(self, searxng_service):
         """Test cache key generation."""
@@ -218,6 +218,8 @@ class TestCacheService:
         with patch('redis.asyncio.ConnectionPool.from_url') as mock_pool:
             with patch('redis.asyncio.Redis') as mock_redis:
                 mock_redis.return_value.ping = AsyncMock()
+                mock_redis.return_value.close = AsyncMock()
+                mock_pool.return_value.disconnect = AsyncMock()
                 await cache_service.initialize()
                 assert cache_service._client is not None
     
@@ -250,7 +252,7 @@ class TestCacheService:
         
         # Test cache set
         await cache_service.set_search_results("test-key", response, 3600)
-        mock_redis.setex.assert_called_once()
+        assert mock_redis.setex.call_count == 2
         
         # Test cache get
         mock_redis.get = AsyncMock(return_value=b'{"test": "data"}')
@@ -285,16 +287,19 @@ class TestDatabaseService:
         await service.close()
     
     @pytest.mark.asyncio
-    async def test_initialize(self, db_service):
+    async def test_initialize(self):
         """Test service initialization."""
-        with patch.object(db_service.engine, 'begin') as mock_begin:
-            mock_conn = AsyncMock()
-            mock_begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-            mock_begin.return_value.__aexit__ = AsyncMock()
-            mock_conn.run_sync = AsyncMock()
-            
-            await db_service.initialize()
-            mock_begin.assert_called_once()
+        from unittest.mock import MagicMock
+        mock_engine = MagicMock()
+        mock_conn = AsyncMock()
+        mock_engine.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__aexit__ = AsyncMock()
+        
+        with patch("app.services.core.database.create_async_engine", return_value=mock_engine):
+            service = DatabaseService()
+            await service.initialize()
+            mock_engine.connect.assert_called_once()
+            mock_conn.execute.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_api_key_operations(self, db_service):

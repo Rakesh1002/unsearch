@@ -9,8 +9,9 @@ import httpx
 
 from app.main import app
 from app.models.requests import UnSearchRequest
-from app.models.responses import SearchResult, SearchMetadata
+from app.models.responses import SearchResult, SearchMetadata, ServiceHealth, EngineInfo
 from app.config import get_settings
+from datetime import datetime
 
 
 @pytest.fixture
@@ -22,10 +23,10 @@ def client():
 @pytest.fixture
 def mock_services():
     """Mock all external services."""
-    with patch('app.services.searxng.get_searxng_service') as mock_searxng, \
-         patch('app.services.scraping.get_scraping_service') as mock_scraper, \
-         patch('app.services.cache.get_cache_service') as mock_cache, \
-         patch('app.services.database.get_database_service') as mock_db:
+    with patch('app.api.dependencies.get_searxng_service') as mock_searxng, \
+         patch('app.api.dependencies.get_scraping_service') as mock_scraper, \
+         patch('app.api.dependencies.get_cache_service') as mock_cache, \
+         patch('app.api.dependencies.get_database_service') as mock_db:
         
         # Mock SearXNG service
         searxng_mock = AsyncMock()
@@ -38,7 +39,8 @@ def mock_services():
                 engine="google"
             )
         ])
-        searxng_mock.health_check = AsyncMock(return_value=Mock(status="healthy", latency_ms=100))
+        searxng_mock.search_with_relevance = AsyncMock(return_value=(searxng_mock.search.return_value, None))
+        searxng_mock.health_check = AsyncMock(return_value=ServiceHealth(status="healthy", latency_ms=100, last_check=datetime.utcnow()))
         searxng_mock.get_available_engines = AsyncMock(return_value={})
         mock_searxng.return_value = searxng_mock
         
@@ -80,7 +82,7 @@ class TestSearchEndpoints:
     def test_search_scrape_basic(self, client, mock_services):
         """Test basic search and scrape."""
         # Disable API key requirement for testing
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []  # No API keys required
             mock_settings.return_value = settings
@@ -102,7 +104,7 @@ class TestSearchEndpoints:
     
     def test_search_scrape_with_content(self, client, mock_services):
         """Test search with content scraping."""
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -124,7 +126,7 @@ class TestSearchEndpoints:
     
     def test_search_validation_errors(self, client, mock_services):
         """Test request validation errors."""
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -155,11 +157,13 @@ class TestSearchEndpoints:
         """Test search with API key authentication."""
         from app.models.database import APIKey
         
-        # Mock API key in database
+        # Mock API key and user in database
         api_key_obj = APIKey(id=1, key="test-api-key", name="Test Key", is_active=True)
         mock_services['db'].get_api_key.return_value = api_key_obj
+        mock_services['db'].get_user_by_api_key.return_value = Mock(id=1, sandbox_expires_at=None, is_agent_placeholder=False, current_subscription=None)
+        mock_services['db'].get_user_usage.return_value = None
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = ["test-api-key"]  # Require API key
             mock_settings.return_value = settings
@@ -179,7 +183,7 @@ class TestSearchEndpoints:
         """Test unauthorized access."""
         mock_services['db'].get_api_key.return_value = None
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = ["required-key"]  # Require API key
             mock_settings.return_value = settings
@@ -205,7 +209,7 @@ class TestSearchEndpoints:
     
     def test_batch_search(self, client, mock_services):
         """Test batch search endpoint."""
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -228,12 +232,28 @@ class TestSearchEndpoints:
     def test_list_engines(self, client, mock_services):
         """Test engines listing endpoint."""
         mock_engines = {
-            "google": Mock(name="google", enabled=True),
-            "bing": Mock(name="bing", enabled=True)
+            "google": EngineInfo(
+                name="google",
+                enabled=True,
+                categories=["general"],
+                supported_languages=["en"],
+                safe_search_support=True,
+                time_range_support=True,
+                paging_support=True
+            ),
+            "bing": EngineInfo(
+                name="bing",
+                enabled=True,
+                categories=["general"],
+                supported_languages=["en"],
+                safe_search_support=True,
+                time_range_support=True,
+                paging_support=True
+            )
         }
         mock_services['searxng'].get_available_engines.return_value = mock_engines
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -266,9 +286,9 @@ class TestErrorHandling:
     def test_searxng_service_error(self, client, mock_services):
         """Test SearXNG service error handling."""
         # Mock SearXNG service error
-        mock_services['searxng'].search.side_effect = Exception("SearXNG connection failed")
+        mock_services['searxng'].search_with_relevance.side_effect = Exception("SearXNG connection failed")
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -280,13 +300,13 @@ class TestErrorHandling:
             
             assert response.status_code == 500
             data = response.json()
-            assert "error" in data
+            assert "detail" in data
     
     def test_rate_limiting(self, client, mock_services):
         """Test rate limiting."""
         # This would require setting up actual rate limiting
         # For now, just test that the endpoint accepts requests
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             settings.rate_limit_enabled = True
@@ -306,7 +326,7 @@ class TestAsyncOperations:
     
     def test_async_search_request(self, client, mock_services):
         """Test async search request creation."""
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -362,7 +382,7 @@ class TestCaching:
         
         mock_services['cache'].get_search_results.return_value = cached_response
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings
@@ -382,7 +402,7 @@ class TestCaching:
     
     def test_cache_disabled(self, client, mock_services):
         """Test when caching is disabled."""
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings') as mock_settings:
             settings = get_settings()
             settings.api_keys = []
             mock_settings.return_value = settings

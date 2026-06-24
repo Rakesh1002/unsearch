@@ -23,7 +23,7 @@ class TestSearchEndpoints:
     ):
         """Test successful search and scrape operation."""
         # Mock search results
-        mock_searxng.search = AsyncMock(return_value=[
+        mock_searxng.search_with_relevance = AsyncMock(return_value=([
             SearchResult(
                 rank=1,
                 title="Test Result",
@@ -31,16 +31,16 @@ class TestSearchEndpoints:
                 snippet="Test snippet",
                 engine="google"
             )
-        ])
+        ], None))
         
         # Mock dependencies
-        authenticated_client.app.dependency_overrides[get_searxng_service] = lambda: mock_searxng
-        authenticated_client.app.dependency_overrides[get_scraping_service] = lambda: mock_scraper
-        authenticated_client.app.dependency_overrides[get_cache_service] = lambda: test_cache
-        authenticated_client.app.dependency_overrides[get_database_service] = lambda: test_db
+        app.dependency_overrides[get_searxng] = lambda: mock_searxng
+        app.dependency_overrides[get_scraper] = lambda: mock_scraper
+        app.dependency_overrides[get_cache] = lambda: test_cache
+        app.dependency_overrides[get_db_service] = lambda: test_db
         
         response = await authenticated_client.post(
-            "/api/v1/search",
+            "/api/v1/search/",
             json=sample_search_request
         )
         
@@ -60,7 +60,7 @@ class TestSearchEndpoints:
     ):
         """Test search without authentication."""
         response = await client.post(
-            "/api/v1/search",
+            "/api/v1/search/",
             json=sample_search_request
         )
         
@@ -73,7 +73,7 @@ class TestSearchEndpoints:
     ):
         """Test search with invalid request data."""
         response = await authenticated_client.post(
-            "/api/v1/search",
+            "/api/v1/search/",
             json={
                 "query": "",  # Empty query
                 "engines": ["invalid_engine"]
@@ -91,7 +91,7 @@ class TestSearchEndpoints:
     ):
         """Test search with caching enabled."""
         # First request - cache miss
-        mock_searxng.search = AsyncMock(return_value=[
+        mock_searxng.search_with_relevance = AsyncMock(return_value=([
             SearchResult(
                 rank=1,
                 title="Cached Result",
@@ -99,13 +99,13 @@ class TestSearchEndpoints:
                 snippet="Test",
                 engine="google"
             )
-        ])
+        ], None))
         
-        authenticated_client.app.dependency_overrides[get_searxng_service] = lambda: mock_searxng
-        authenticated_client.app.dependency_overrides[get_cache_service] = lambda: test_cache
+        app.dependency_overrides[get_searxng] = lambda: mock_searxng
+        app.dependency_overrides[get_cache] = lambda: test_cache
         
         response1 = await authenticated_client.post(
-            "/api/v1/search",
+            "/api/v1/search/",
             json=sample_search_request
         )
         
@@ -115,7 +115,7 @@ class TestSearchEndpoints:
         
         # Second request - should hit cache
         response2 = await authenticated_client.post(
-            "/api/v1/search",
+            "/api/v1/search/",
             json=sample_search_request
         )
         
@@ -129,13 +129,13 @@ class TestSearchEndpoints:
         mock_searxng
     ):
         """Test batch search endpoint."""
-        mock_searxng.search = AsyncMock(side_effect=[
-            [SearchResult(rank=1, title=f"Result for query {i}", 
-                         url=f"https://example{i}.com", snippet="Test", engine="google")]
+        mock_searxng.search_with_relevance = AsyncMock(side_effect=[
+            ([SearchResult(rank=1, title=f"Result for query {i}", 
+                          url=f"https://example{i}.com", snippet="Test", engine="google")], None)
             for i in range(3)
         ])
         
-        authenticated_client.app.dependency_overrides[get_searxng_service] = lambda: mock_searxng
+        app.dependency_overrides[get_searxng] = lambda: mock_searxng
         
         response = await authenticated_client.post(
             "/api/v1/search/batch",
@@ -181,7 +181,7 @@ class TestSearchEndpoints:
         }
         
         mock_searxng.get_available_engines = AsyncMock(return_value=mock_engines)
-        authenticated_client.app.dependency_overrides[get_searxng_service] = lambda: mock_searxng
+        app.dependency_overrides[get_searxng] = lambda: mock_searxng
         
         response = await authenticated_client.get("/api/v1/search/engines")
         
@@ -221,9 +221,9 @@ class TestHealthEndpoints:
             last_check="2024-01-01T00:00:00"
         ))
         
-        client.app.dependency_overrides[get_searxng_service] = lambda: mock_searxng
-        client.app.dependency_overrides[get_cache_service] = lambda: test_cache
-        client.app.dependency_overrides[get_database_service] = lambda: test_db
+        app.dependency_overrides[get_searxng] = lambda: mock_searxng
+        app.dependency_overrides[get_cache] = lambda: test_cache
+        app.dependency_overrides[get_db_service] = lambda: test_db
         
         response = await client.get("/api/v1/search/health")
         
@@ -238,7 +238,5 @@ class TestHealthEndpoints:
 
 
 # Import after to avoid circular imports
-from app.services.searxng import get_searxng_service
-from app.services.scraping import get_scraping_service
-from app.services.cache import get_cache_service
-from app.services.core.database import get_database_service
+from app.main import app
+from app.api.dependencies import get_searxng, get_scraper, get_cache, get_db_service

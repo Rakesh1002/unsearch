@@ -13,6 +13,25 @@ from app.main import app
 from app.models.responses import SearchResult
 
 
+@pytest.fixture(autouse=True)
+def override_api_keys():
+    """Bypass API key check for load tests by clearing configured keys."""
+    from app.config import get_settings
+    from app.api.dependencies import get_settings_dependency
+    settings = get_settings()
+    original_api_keys = settings.api_keys
+    settings.api_keys = []
+    
+    # Also override via dependency overrides mapping
+    app.dependency_overrides[get_settings_dependency] = lambda: settings
+    
+    yield
+    
+    settings.api_keys = original_api_keys
+    if get_settings_dependency in app.dependency_overrides:
+        del app.dependency_overrides[get_settings_dependency]
+
+
 @pytest.fixture
 def client():
     """Create test client."""
@@ -22,10 +41,12 @@ def client():
 @pytest.fixture
 def mock_fast_services():
     """Mock services with fast responses for load testing."""
-    with patch('app.services.searxng.get_searxng_service') as mock_searxng, \
-         patch('app.services.scraping.get_scraping_service') as mock_scraper, \
-         patch('app.services.cache.get_cache_service') as mock_cache, \
-         patch('app.services.database.get_database_service') as mock_db:
+    with patch('app.api.dependencies.get_searxng_service') as mock_searxng, \
+         patch('app.services.searxng.get_searxng_service') as mock_searxng_legacy, \
+         patch('app.services.core.searxng.get_searxng_service') as mock_searxng_core, \
+         patch('app.api.dependencies.get_scraping_service') as mock_scraper, \
+         patch('app.api.dependencies.get_cache_service') as mock_cache, \
+         patch('app.api.dependencies.get_database_service') as mock_db:
         
         # Mock SearXNG with fast response
         searxng_mock = AsyncMock()
@@ -38,7 +59,10 @@ def mock_fast_services():
                 engine="google"
             ) for i in range(1, 11)
         ])
+        searxng_mock.search_with_relevance = AsyncMock(return_value=(searxng_mock.search.return_value, None))
         mock_searxng.return_value = searxng_mock
+        mock_searxng_legacy.return_value = searxng_mock
+        mock_searxng_core.return_value = searxng_mock
         
         # Mock other services
         scraper_mock = AsyncMock()
@@ -177,12 +201,13 @@ class TestPerformance:
         ]
         
         mock_fast_services['searxng'].search.return_value = large_results
+        mock_fast_services['searxng'].search_with_relevance.return_value = (large_results, None)
         
-        with patch('app.config.get_settings') as mock_settings:
+        with patch('app.api.dependencies.get_settings_dependency') as mock_settings:
             from app.config import get_settings
             settings = get_settings()
             settings.api_keys = []
-            mock_settings.return_value = settings
+            mock_settings.return_value = lambda: settings
             
             start_time = time.time()
             

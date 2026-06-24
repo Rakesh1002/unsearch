@@ -468,7 +468,7 @@ class TestRAGCorpusEndpoints:
     ):
         """Test successful corpus deletion."""
         mock_rag_service.vector_store.get_corpus_size = MagicMock(return_value=50)
-        mock_rag_service.vector_store.delete_corpus = MagicMock()
+        mock_rag_service.vector_store.delete_corpus = AsyncMock()
         
         with patch('app.api.v1.rag.get_rag_service', return_value=mock_rag_service):
             response = await authenticated_client.delete("/api/v1/rag/corpus/test_corpus")
